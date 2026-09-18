@@ -1,8 +1,8 @@
-
-NODE_VERSION = "24"
+[variables]
+NODE_VERSION = "24.15.0"
 
 [phases.install]
-cmds = ["npm ci"]
+cmds = ["npm install"]
 
 [phases.build]
 cmds = [
@@ -12,5 +12,3 @@ cmds = [
 
 [start]
 cmd = "npm run start:prod"
-
-[variables]
