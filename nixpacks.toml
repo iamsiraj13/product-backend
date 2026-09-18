@@ -1,8 +1,8 @@
 [variables]
-NODE_VERSION = "24.15.0"
+NODE_VERSION = "22.12.0"
 
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm ci"]
 
 [phases.build]
 cmds = [
