@@ -1,7 +1,8 @@
+
+NODE_VERSION = "24"
+
 [phases.install]
-cmds = [
-  "npm ci"
-]
+cmds = ["npm ci"]
 
 [phases.build]
 cmds = [
@@ -11,3 +12,5 @@ cmds = [
 
 [start]
 cmd = "npm run start:prod"
+
+[variables]
