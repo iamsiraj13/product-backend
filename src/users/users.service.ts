@@ -4,7 +4,7 @@ import { TaskStatus } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -79,6 +79,41 @@ export class UsersService {
       },
     });
 
+    // Calculate commission statistics
+    const totalCommissionAggregate = await this.prisma.productTask.aggregate({
+      where: {
+        userId,
+        status: TaskStatus.COMPLETED,
+      },
+      _sum: {
+        earnedCommission: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    const todayCommissionAggregate = await this.prisma.productTask.aggregate({
+      where: {
+        userId,
+        status: TaskStatus.COMPLETED,
+        completedAt: {
+          gte: startOfDay,
+        },
+      },
+      _sum: {
+        earnedCommission: true,
+      },
+    });
+
+    const totalEarnedCommission = Number(
+      totalCommissionAggregate._sum.earnedCommission || 0,
+    );
+    const todayEarnedCommission = Number(
+      todayCommissionAggregate._sum.earnedCommission || 0,
+    );
+    const totalCommissionCount = totalCommissionAggregate._count.id;
+
     const DAILY_LIMIT = 33;
 
     return {
@@ -89,6 +124,12 @@ export class UsersService {
         dailyLimit: DAILY_LIMIT,
         remainingToday: Math.max(0, DAILY_LIMIT - todayTaskCount),
       },
+      commissionSummary: {
+        totalEarned: totalEarnedCommission,
+        todayEarned: todayEarnedCommission,
+
+      },
+
     };
   }
 }

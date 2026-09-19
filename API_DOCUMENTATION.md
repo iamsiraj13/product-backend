@@ -640,6 +640,60 @@ export interface UserTasksResponse {
 
 ---
 
+#### 17. Update User Profile
+- **Method & Path**: `PUT /api/v1/admin/users/:id`
+- **Auth Guard**: Bearer JWT (`ADMIN` or `AGENT`)
+- **URL Parameter**: `id` - Target User ID
+
+**Request Body** (All fields optional):
+```json
+{
+  "username": "johndoe_updated",
+  "email": "john.updated@example.com",
+  "phone": "+1234567890",
+  "password": "newPassword123",
+  "role": "USER",
+  "accountType": "MAIN",
+  "balance": 150.00,
+  "isActive": true
+}
+```
+
+**Success Response (200 OK)**:
+```json
+{
+  "id": "u123-uuid",
+  "username": "johndoe_updated",
+  "email": "john.updated@example.com",
+  "phone": "+1234567890",
+  "role": "USER",
+  "accountType": "MAIN",
+  "balance": "150.00",
+  "invitationCode": "NEWINV1",
+  "parentUserId": null,
+  "isActive": true,
+  "createdAt": "2026-09-16T23:00:00.000Z",
+  "updatedAt": "2026-09-19T08:20:00.000Z"
+}
+```
+
+---
+
+#### 18. Delete User Account
+- **Method & Path**: `DELETE /api/v1/admin/users/:id`
+- **Auth Guard**: Bearer JWT (`ADMIN` or `AGENT`)
+- **URL Parameter**: `id` - Target User ID to delete
+
+**Success Response (200 OK)**:
+```json
+{
+  "message": "User deleted successfully",
+  "id": "u123-uuid"
+}
+```
+
+---
+
 ## 5. Next.js API Client Boilerplate Example
 
 You can implement an Axios API Client (`@/lib/api-client.ts`) with automatic token refresh in Next.js:

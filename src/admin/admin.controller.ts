@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Put,
+  Delete,
   Get,
   Body,
   Param,
@@ -38,6 +39,7 @@ import {
   CreateTrainingAccountDto,
   UserQueryDto,
   ProductQueryDto,
+  UpdateUserDto,
 } from './dto/admin.dto';
 import { getBaseUrl, formatImageUrl } from '../common/utils/url.util';
 
@@ -50,7 +52,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly storageService: StorageService,
-  ) {}
+  ) { }
 
   // Local Image Upload Endpoint
   @ApiOperation({ summary: 'Upload image file' })
@@ -169,6 +171,28 @@ export class AdminController {
   @Get('users')
   async getUsers(@Query() query: UserQueryDto) {
     return this.adminService.getUsers(query);
+  }
+
+  // Update User Profile
+  @ApiOperation({ summary: 'Update any user profile' })
+  @ApiParam({ name: 'id', description: 'Target user ID' })
+  @Put('users/:id')
+  async updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return this.adminService.updateUser(id, dto);
+  }
+
+  // Delete User Account
+  @ApiOperation({ summary: 'Delete any user account' })
+  @ApiParam({ name: 'id', description: 'Target user ID to delete' })
+  @Delete('users/:id')
+  async deleteUser(
+    @CurrentUser('id') adminId: string,
+    @Param('id') id: string,
+  ) {
+    return this.adminService.deleteUser(adminId, id);
   }
 
   // Manual Financial Balance Adjustment

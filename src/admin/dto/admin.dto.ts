@@ -199,6 +199,56 @@ export class CreateTrainingAccountDto {
   initialBalance?: number;
 }
 
+export class UpdateUserDto {
+  @ApiPropertyOptional({ example: 'johndoe', description: 'User username' })
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @ApiPropertyOptional({ example: 'john@example.com', description: 'User email' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ example: '+1234567890', description: 'User phone number' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'newPassword123', description: 'New password' })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  password?: string;
+
+  @ApiPropertyOptional({ enum: Role, description: 'User role (ADMIN, AGENT, USER)' })
+  @IsOptional()
+  @IsEnum(Role)
+  role?: Role;
+
+  @ApiPropertyOptional({ enum: AccountType, description: 'Account type (MAIN, TRAINING)' })
+  @IsOptional()
+  @IsEnum(AccountType)
+  accountType?: AccountType;
+
+  @ApiPropertyOptional({ example: 100.0, description: 'User balance' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  balance?: number;
+
+  @ApiPropertyOptional({ example: true, description: 'Whether account is active' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean()
+  isActive?: boolean;
+}
+
 export class UserQueryDto {
   @ApiPropertyOptional({ description: 'Search filter by username/email/phone' })
   @IsOptional()

@@ -13,6 +13,7 @@ import {
   CreateTrainingAccountDto,
   UserQueryDto,
   ProductQueryDto,
+  UpdateUserDto,
 } from './dto/admin.dto';
 import { Role, AccountType, TransactionType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -211,6 +212,105 @@ export class AdminService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async updateUser(id: string, dto: UpdateUserDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (dto.username || dto.email || dto.phone) {
+      const conflicts = await this.prisma.user.findFirst({
+        where: {
+          id: { not: id },
+          OR: [
+            ...(dto.username ? [{ username: dto.username }] : []),
+            ...(dto.email ? [{ email: dto.email }] : []),
+            ...(dto.phone ? [{ phone: dto.phone }] : []),
+          ],
+        },
+      });
+
+      if (conflicts) {
+        throw new ConflictException('Username, email, or phone is already in use by another user');
+      }
+    }
+
+    const dataToUpdate: Prisma.UserUpdateInput = {};
+
+    if (dto.username !== undefined) dataToUpdate.username = dto.username;
+    if (dto.email !== undefined) dataToUpdate.email = dto.email || null;
+    if (dto.phone !== undefined) dataToUpdate.phone = dto.phone || null;
+    if (dto.password !== undefined) {
+      dataToUpdate.passwordHash = await bcrypt.hash(dto.password, 10);
+    }
+    if (dto.role !== undefined) dataToUpdate.role = dto.role;
+    if (dto.accountType !== undefined) dataToUpdate.accountType = dto.accountType;
+    if (dto.balance !== undefined) dataToUpdate.balance = new Prisma.Decimal(dto.balance);
+    if (dto.isActive !== undefined) dataToUpdate.isActive = dto.isActive;
+
+    return this.prisma.user.update({
+      where: { id },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        phone: true,
+        role: true,
+        accountType: true,
+        balance: true,
+        invitationCode: true,
+        parentUserId: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async deleteUser(adminId: string, id: string) {
+    if (adminId === id) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.updateMany({
+        where: { invitedById: id },
+        data: { invitedById: null },
+      });
+
+      await tx.user.updateMany({
+        where: { parentUserId: id },
+        data: { parentUserId: null },
+      });
+
+      await tx.productTask.deleteMany({
+        where: { userId: id },
+      });
+
+      await tx.transaction.deleteMany({
+        where: { userId: id },
+      });
+
+      await tx.user.delete({
+        where: { id },
+      });
+    });
+
+    return { message: 'User deleted successfully', id };
   }
 
   // --- Manual Financial Adjustment ---

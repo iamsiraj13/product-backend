@@ -9,7 +9,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @ApiOperation({ summary: 'Get current user profile and account details' })
   @Get('profile')

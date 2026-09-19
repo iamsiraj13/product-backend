@@ -17,7 +17,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   private generateUniqueInviteCode(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -64,7 +64,7 @@ export class AuthService {
     // 3. Hash password & generate unique user invitation code
     const passwordHash = await bcrypt.hash(dto.password, 10);
     let newUserInviteCode = this.generateUniqueInviteCode();
-    
+
     // Ensure invite code is unique
     while (await this.prisma.user.findUnique({ where: { invitationCode: newUserInviteCode } })) {
       newUserInviteCode = this.generateUniqueInviteCode();

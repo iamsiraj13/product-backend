@@ -14,6 +14,22 @@ describe('AdminService - Product Management', () => {
       update: jest.fn(),
       findMany: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      updateMany: jest.fn(),
+      count: jest.fn(),
+      findMany: jest.fn(),
+    },
+    productTask: {
+      deleteMany: jest.fn(),
+    },
+    transaction: {
+      deleteMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -162,6 +178,81 @@ describe('AdminService - Product Management', () => {
         limit: 10,
         totalPages: 1,
       });
+    });
+  });
+
+  describe('updateUser', () => {
+    it('should throw NotFoundException if target user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateUser('non-existent-user', { username: 'newname' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException if updated username, email, or phone is already taken by another user', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'user1' });
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'user-2', username: 'taken_username' });
+
+      await expect(
+        service.updateUser('user-1', { username: 'taken_username' }),
+      ).rejects.toThrow('Username, email, or phone is already in use by another user');
+    });
+
+    it('should successfully update user fields', async () => {
+      const existingUser = {
+        id: 'user-1',
+        username: 'oldname',
+        email: 'old@example.com',
+        phone: '+111111111',
+        role: 'USER',
+        accountType: 'MAIN',
+        balance: new Prisma.Decimal(0),
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(existingUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.update.mockResolvedValue({
+        ...existingUser,
+        username: 'updatedname',
+        email: 'updated@example.com',
+      });
+
+      const result = await service.updateUser('user-1', {
+        username: 'updatedname',
+        email: 'updated@example.com',
+      });
+
+      expect(mockPrismaService.user.update).toHaveBeenCalled();
+      expect(result.username).toBe('updatedname');
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('should throw BadRequestException if admin tries to delete their own account', async () => {
+      await expect(service.deleteUser('admin-1', 'admin-1')).rejects.toThrow(
+        'You cannot delete your own account',
+      );
+    });
+
+    it('should throw NotFoundException if target user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      await expect(service.deleteUser('admin-1', 'user-99')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should successfully delete user and clean up dependent relations in transaction', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'to_delete' });
+      mockPrismaService.$transaction = jest.fn((cb) => cb(mockPrismaService));
+      mockPrismaService.user.updateMany = jest.fn().mockResolvedValue({ count: 0 });
+      mockPrismaService.productTask = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) };
+      mockPrismaService.transaction = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) };
+      mockPrismaService.user.delete = jest.fn().mockResolvedValue({ id: 'user-1' });
+
+      const result = await service.deleteUser('admin-1', 'user-1');
+
+      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({ where: { id: 'user-1' } });
+      expect(result).toEqual({ message: 'User deleted successfully', id: 'user-1' });
     });
   });
 });
