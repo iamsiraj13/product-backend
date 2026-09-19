@@ -10,9 +10,9 @@ import { SubmitTaskDto } from './dto/tasks.dto';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
-  // Generate a new random product task for the user
+  // Generate a new product task for the user
   async generateTask(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -22,36 +22,33 @@ export class TasksService {
       throw new BadRequestException('User is inactive or not found');
     }
 
-    // 1. Check daily limit (33 tasks per day)
+    const taskLimit = user.taskLimit || 33;
+
+    // 1. Check user completed task limit for today
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const generatedTodayCount = await this.prisma.productTask.count({
+    const completedTodayCount = await this.prisma.productTask.count({
       where: {
         userId,
-        generatedAt: {
+        status: TaskStatus.COMPLETED,
+        completedAt: {
           gte: startOfDay,
-        },
-        status: {
-          in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED],
         },
       },
     });
 
-    const DAILY_LIMIT = 33;
-    if (generatedTodayCount >= DAILY_LIMIT) {
+    if (completedTodayCount >= taskLimit) {
       throw new BadRequestException(
-        `Daily task limit of ${DAILY_LIMIT} tasks has been reached for today`,
+        `Task limit of ${taskLimit} tasks has been reached`,
       );
     }
 
-    // 2. Check if user already has an uncompleted task (GENERATED or IN_PROGRESS)
+    // 2. Check if user already has an active task in progress
     const activeTask = await this.prisma.productTask.findFirst({
       where: {
         userId,
-        status: {
-          in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS],
-        },
+        status: TaskStatus.IN_PROGRESS,
       },
       include: {
         product: true,
@@ -60,11 +57,37 @@ export class TasksService {
 
     if (activeTask) {
       throw new ConflictException(
-        'You have an active pending task. Please complete or process it before generating a new one.',
+        'You have an active pending task. Please complete it before generating a new one.',
       );
     }
 
-    // 3. Filter active products where price <= currentBalance
+    // 3. Count total completed tasks to determine current next step number
+    const totalCompletedCount = await this.prisma.productTask.count({
+      where: {
+        userId,
+        status: TaskStatus.COMPLETED,
+      },
+    });
+
+    const nextStepNumber = totalCompletedCount + 1;
+
+    // 4. Check for existing pre-generated / allocated task slot for the next step number
+    const existingTask = await this.prisma.productTask.findFirst({
+      where: {
+        userId,
+        stepNumber: nextStepNumber,
+        status: TaskStatus.GENERATED,
+      },
+      include: {
+        product: true,
+      },
+    });
+
+    if (existingTask) {
+      return existingTask;
+    }
+
+    // 5. Filter active products where price <= currentBalance
     const eligibleProducts = await this.prisma.product.findMany({
       where: {
         isActive: true,
@@ -80,15 +103,16 @@ export class TasksService {
       );
     }
 
-    // 4. Randomly pick an eligible product
+    // 6. Randomly pick an eligible product
     const randomIndex = Math.floor(Math.random() * eligibleProducts.length);
     const selectedProduct = eligibleProducts[randomIndex];
 
-    // 5. Create ProductTask snapshot
+    // 7. Create ProductTask snapshot with stepNumber
     const newTask = await this.prisma.productTask.create({
       data: {
         userId,
         productId: selectedProduct.id,
+        stepNumber: nextStepNumber,
         priceSnapshot: selectedProduct.price,
         commissionSnapshot: selectedProduct.commissionRate,
         status: TaskStatus.GENERATED,
@@ -127,12 +151,7 @@ export class TasksService {
       const balanceBefore = new Prisma.Decimal(user.balance.toString());
       const priceToDebit = new Prisma.Decimal(task.priceSnapshot.toString());
 
-      if (balanceBefore.lessThan(priceToDebit)) {
-        throw new BadRequestException(
-          `Insufficient wallet balance to start task. Required: $${priceToDebit}, Available: $${balanceBefore}`,
-        );
-      }
-
+      // Debit User Balance (allows negative balance for overridden/high-price tasks)
       const balanceAfter = balanceBefore.sub(priceToDebit);
 
       // Debit User Balance
@@ -194,7 +213,7 @@ export class TasksService {
 
       const priceSnapshot = new Prisma.Decimal(task.priceSnapshot.toString());
       const commissionRate = new Prisma.Decimal(task.commissionSnapshot.toString());
-      
+
       // earnedCommission = priceSnapshot * (commissionRate / 100)
       const earnedCommission = priceSnapshot.mul(commissionRate).div(100);
       const totalCreditAmount = priceSnapshot.add(earnedCommission);
@@ -275,4 +294,23 @@ export class TasksService {
       recentCompleted,
     };
   }
+
+  // Get only pending task for the logged-in user
+  async getPendingTask(userId: string) {
+    const pendingTask = await this.prisma.productTask.findFirst({
+      where: {
+        userId,
+        status: {
+          in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS],
+        },
+      },
+      include: {
+        product: true,
+      },
+      orderBy: { generatedAt: 'desc' },
+    });
+
+    return pendingTask;
+  }
 }
+

@@ -74,7 +74,7 @@ describe('TasksService', () => {
       prismaService.productTask.count.mockResolvedValue(5);
       prismaService.productTask.findFirst.mockResolvedValue({
         id: 'existing-task',
-        status: TaskStatus.GENERATED,
+        status: TaskStatus.IN_PROGRESS,
       });
 
       await expect(service.generateTask('usr-1')).rejects.toThrow(
@@ -121,11 +121,78 @@ describe('TasksService', () => {
         data: {
           userId: 'usr-1',
           productId: mockProduct.id,
+          stepNumber: 3,
           priceSnapshot: mockProduct.price,
           commissionSnapshot: mockProduct.commissionRate,
           status: TaskStatus.GENERATED,
         },
         include: { product: true },
+      });
+    });
+
+    it('should return existing pre-generated task with overridden price and commission snapshot if present', async () => {
+      prismaService.user.findUnique.mockResolvedValue(mockUser);
+      prismaService.productTask.count.mockResolvedValue(0);
+
+      const overriddenTask = {
+        id: 'task-overridden-1',
+        userId: 'usr-1',
+        productId: mockProduct.id,
+        stepNumber: 1,
+        priceSnapshot: new Prisma.Decimal('250.00'),
+        commissionSnapshot: new Prisma.Decimal('15.00'),
+        status: TaskStatus.GENERATED,
+        product: mockProduct,
+      };
+
+      prismaService.productTask.findFirst
+        .mockResolvedValueOnce(null) // no active IN_PROGRESS task
+        .mockResolvedValueOnce(overriddenTask); // step 1 pre-generated/overridden task
+
+      const result = await service.generateTask('usr-1');
+
+      expect(result).toEqual(overriddenTask);
+      expect(prismaService.productTask.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('startTask', () => {
+    it('should debit user balance and update status to IN_PROGRESS even if price exceeds balance', async () => {
+      const taskGenerated = {
+        id: 'task-overridden-1',
+        userId: 'usr-1',
+        priceSnapshot: new Prisma.Decimal('250.00'),
+        commissionSnapshot: new Prisma.Decimal('15.00'),
+        status: TaskStatus.GENERATED,
+      };
+
+      prismaService.productTask.findUnique.mockResolvedValue(taskGenerated);
+      prismaService.user.findUnique.mockResolvedValue(mockUser); // balance: 100.00
+      prismaService.user.update.mockResolvedValue({
+        ...mockUser,
+        balance: new Prisma.Decimal('-150.00'),
+      });
+      prismaService.productTask.update.mockResolvedValue({
+        ...taskGenerated,
+        status: TaskStatus.IN_PROGRESS,
+      });
+
+      const result = await service.startTask('usr-1', 'task-overridden-1');
+
+      expect(result.updatedBalance.toString()).toBe('-150');
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'usr-1' },
+        data: { balance: new Prisma.Decimal('-150.00') },
+      });
+      expect(prismaService.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'usr-1',
+          type: TransactionType.DEBIT,
+          amount: new Prisma.Decimal('250.00'),
+          balanceBefore: new Prisma.Decimal('100.00'),
+          balanceAfter: new Prisma.Decimal('-150.00'),
+          referenceType: 'TASK_START',
+        }),
       });
     });
   });
@@ -171,4 +238,42 @@ describe('TasksService', () => {
       });
     });
   });
+
+  describe('getPendingTask', () => {
+    it('should return pending task if active GENERATED or IN_PROGRESS task exists', async () => {
+      const pendingTask = {
+        id: 'task-pending-1',
+        userId: 'usr-1',
+        status: TaskStatus.IN_PROGRESS,
+        product: mockProduct,
+      };
+
+      prismaService.productTask.findFirst.mockResolvedValue(pendingTask);
+
+      const result = await service.getPendingTask('usr-1');
+
+      expect(result).toEqual(pendingTask);
+      expect(prismaService.productTask.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'usr-1',
+          status: {
+            in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS],
+          },
+        },
+        include: {
+          product: true,
+        },
+        orderBy: { generatedAt: 'desc' },
+      });
+    });
+
+    it('should return null if no pending task exists', async () => {
+      prismaService.productTask.findFirst.mockResolvedValue(null);
+
+      const result = await service.getPendingTask('usr-1');
+
+      expect(result).toBeNull();
+    });
+  });
 });
+

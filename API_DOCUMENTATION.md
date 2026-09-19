@@ -405,7 +405,74 @@ export interface UserTasksResponse {
 
 ---
 
-### D. Admin & Agent Portal (`/api/v1/admin`)
+#### 8.1. Get Only Pending Task
+- **Method & Path**: `GET /api/v1/tasks/pending`
+- **Auth Guard**: Bearer JWT Required
+- **Description**: Returns only the current pending task (`GENERATED` or `IN_PROGRESS`) for the logged-in user, or `null` if no pending task exists.
+
+**Success Response (200 OK)**:
+```json
+{
+  "id": "task-111-uuid",
+  "userId": "u123-uuid",
+  "productId": "prod-555-uuid",
+  "stepNumber": 1,
+  "priceSnapshot": "99.99",
+  "commissionSnapshot": "10.50",
+  "earnedCommission": null,
+  "rating": null,
+  "comment": null,
+  "status": "IN_PROGRESS",
+  "generatedAt": "2026-09-16T23:30:00.000Z",
+  "completedAt": null,
+  "product": {
+    "id": "prod-555-uuid",
+    "title": "Wireless Noise Canceling Headphones",
+    "image": "/uploads/img-1726500000.jpg",
+    "price": "99.99",
+    "commissionRate": "10.50",
+    "isHomeProduct": true,
+    "isActive": true
+  }
+}
+```
+
+---
+
+
+### D. Public Products Catalog (`/api/v1/products`)
+
+#### 9. Get Home Products Only
+- **Method & Path**: `GET /api/v1/products/home` or `GET /api/v1/home-products`
+- **Auth Guard**: Public / None
+- **Description**: Returns a list of all active marketplace products flagged for home display (`isHomeProduct: true` and `isActive: true`).
+
+**Success Response (200 OK)**:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": [
+    {
+      "id": "prod-555-uuid",
+      "title": "Wireless Noise Canceling Headphones",
+      "image": "http://localhost:4000/uploads/img-1726500000.jpg",
+      "price": "99.99",
+      "commissionRate": "2.00",
+      "commission": "2.00",
+      "isHomeProduct": true,
+      "isActive": true,
+      "createdAt": "2026-09-17T10:00:00.000Z",
+      "updatedAt": "2026-09-17T10:00:00.000Z"
+    }
+  ],
+  "timestamp": "2026-09-19T10:10:00.000Z"
+}
+```
+
+---
+
+### E. Admin & Agent Portal (`/api/v1/admin`)
 
 > **Note**: Requires role `ADMIN` or `AGENT` (except Onboard Agent which requires `ADMIN`).
 

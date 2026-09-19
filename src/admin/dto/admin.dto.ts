@@ -247,6 +247,76 @@ export class UpdateUserDto {
   })
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ example: 10, description: 'User total task limit allocation (default 33)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  taskLimit?: number;
+}
+
+export class SetUserTaskLimitDto {
+  @ApiProperty({ example: 10, description: 'Total tasks user can generate/perform' })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  taskLimit: number;
+}
+
+export class OverrideTaskCommissionDto {
+  @ApiPropertyOptional({ example: 500.0, description: 'Override product price for this task step' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  price?: number;
+
+  @ApiPropertyOptional({ example: 15.0, description: 'Override commission rate percentage for this task step' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  commissionRate?: number;
+
+  @ApiPropertyOptional({ example: 500.0, description: 'Alias for price' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  priceSnapshot?: number;
+
+  @ApiPropertyOptional({ example: 15.0, description: 'Alias for commissionRate' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  commissionSnapshot?: number;
+
+  @ApiPropertyOptional({ example: 15.0, description: 'Alias for commissionRate' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  commission?: number;
+
+  @ApiPropertyOptional({ example: 'uuid-product-id', description: 'Optionally assign a specific product for this task step' })
+  @IsOptional()
+  @IsString()
+  productId?: string;
+}
+
+export class PreGenerateUserTasksDto {
+  @ApiPropertyOptional({ example: 33, description: 'Number of tasks to pre-generate/allocate for user (default 33, max 33)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(33)
+  count?: number;
 }
 
 export class UserQueryDto {

@@ -25,6 +25,9 @@ describe('AdminService - Product Management', () => {
     },
     productTask: {
       deleteMany: jest.fn(),
+      count: jest.fn(),
+      createMany: jest.fn(),
+      findMany: jest.fn(),
     },
     transaction: {
       deleteMany: jest.fn(),
@@ -253,6 +256,121 @@ describe('AdminService - Product Management', () => {
 
       expect(mockPrismaService.user.delete).toHaveBeenCalledWith({ where: { id: 'user-1' } });
       expect(result).toEqual({ message: 'User deleted successfully', id: 'user-1' });
+    });
+  });
+
+  describe('preGenerateUserTasks', () => {
+    it('should pre-generate 33 tasks by default when count is omitted', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        username: 'testuser',
+        taskLimit: 33,
+      });
+      mockPrismaService.productTask.count = jest.fn().mockResolvedValue(0);
+      mockPrismaService.product.findMany.mockResolvedValue([
+        { id: 'prod-1', price: new Prisma.Decimal(100), commissionRate: new Prisma.Decimal(2) },
+      ]);
+      mockPrismaService.productTask.createMany = jest.fn().mockResolvedValue({ count: 33 });
+      mockPrismaService.productTask.findMany = jest.fn().mockResolvedValue(new Array(33).fill({ id: 'task' }));
+
+      const result = await service.preGenerateUserTasks('user-1', {});
+
+      expect(mockPrismaService.productTask.createMany).toHaveBeenCalled();
+      const createData = mockPrismaService.productTask.createMany.mock.calls[0][0].data;
+      expect(createData.length).toBe(33);
+      expect(result.totalTasks).toBe(33);
+    });
+
+    it('should throw BadRequestException if user already has 33 tasks pre-generated', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        username: 'testuser',
+        taskLimit: 33,
+      });
+      mockPrismaService.productTask.count = jest.fn().mockResolvedValue(33);
+
+      await expect(service.preGenerateUserTasks('user-1', {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('overrideTaskCommission', () => {
+    it('should throw NotFoundException if task to override does not exist', async () => {
+      mockPrismaService.productTask.findUnique = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        service.overrideTaskCommission('non-existent-task', { commissionSnapshot: 10 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if no fields are passed in DTO', async () => {
+      mockPrismaService.productTask.findUnique = jest.fn().mockResolvedValue({ id: 'task-1' });
+
+      await expect(
+        service.overrideTaskCommission('task-1', {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should successfully override price and commission snapshot for a task step', async () => {
+      const existingTask = {
+        id: 'task-1',
+        stepNumber: 2,
+        priceSnapshot: new Prisma.Decimal('100.00'),
+        commissionSnapshot: new Prisma.Decimal('5.00'),
+      };
+
+      mockPrismaService.productTask.findUnique = jest.fn().mockResolvedValue(existingTask);
+      mockPrismaService.productTask.update = jest.fn().mockResolvedValue({
+        ...existingTask,
+        priceSnapshot: new Prisma.Decimal('200.00'),
+        commissionSnapshot: new Prisma.Decimal('12.00'),
+      });
+
+      const result = await service.overrideTaskCommission('task-1', {
+        priceSnapshot: 200.0,
+        commissionSnapshot: 12.0,
+      });
+
+      expect(mockPrismaService.productTask.update).toHaveBeenCalledWith({
+        where: { id: 'task-1' },
+        data: {
+          priceSnapshot: new Prisma.Decimal(200.0),
+          commissionSnapshot: new Prisma.Decimal(12.0),
+        },
+        include: { product: true },
+      });
+      expect(result.task.priceSnapshot).toEqual(new Prisma.Decimal('200.00'));
+      expect(result.task.commissionSnapshot).toEqual(new Prisma.Decimal('12.00'));
+    });
+
+    it('should successfully override task when passing alias field names (price, commission / commissionRate)', async () => {
+      const existingTask = {
+        id: 'task-2',
+        stepNumber: 3,
+        priceSnapshot: new Prisma.Decimal('100.00'),
+        commissionSnapshot: new Prisma.Decimal('5.00'),
+      };
+
+      mockPrismaService.productTask.findUnique = jest.fn().mockResolvedValue(existingTask);
+      mockPrismaService.productTask.update = jest.fn().mockResolvedValue({
+        ...existingTask,
+        priceSnapshot: new Prisma.Decimal('500.00'),
+        commissionSnapshot: new Prisma.Decimal('15.00'),
+      });
+
+      const result = await service.overrideTaskCommission('task-2', {
+        price: 500.0,
+        commissionRate: 15.0,
+      });
+
+      expect(mockPrismaService.productTask.update).toHaveBeenCalledWith({
+        where: { id: 'task-2' },
+        data: {
+          priceSnapshot: new Prisma.Decimal(500.0),
+          commissionSnapshot: new Prisma.Decimal(15.0),
+        },
+        include: { product: true },
+      });
+      expect(result.task.priceSnapshot).toEqual(new Prisma.Decimal('500.00'));
     });
   });
 });

@@ -14,6 +14,9 @@ import {
   UserQueryDto,
   ProductQueryDto,
   UpdateUserDto,
+  SetUserTaskLimitDto,
+  OverrideTaskCommissionDto,
+  PreGenerateUserTasksDto,
 } from './dto/admin.dto';
 import { Role, AccountType, TransactionType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -252,6 +255,7 @@ export class AdminService {
     if (dto.accountType !== undefined) dataToUpdate.accountType = dto.accountType;
     if (dto.balance !== undefined) dataToUpdate.balance = new Prisma.Decimal(dto.balance);
     if (dto.isActive !== undefined) dataToUpdate.isActive = dto.isActive;
+    if (dto.taskLimit !== undefined) dataToUpdate.taskLimit = dto.taskLimit;
 
     return this.prisma.user.update({
       where: { id },
@@ -264,6 +268,7 @@ export class AdminService {
         role: true,
         accountType: true,
         balance: true,
+        taskLimit: true,
         invitationCode: true,
         parentUserId: true,
         isActive: true,
@@ -474,5 +479,180 @@ export class AdminService {
         createdAt: true,
       },
     });
+  }
+
+  // --- Task Limit & Custom Task Commission Override ---
+
+  // Set custom task limit for a user
+  async setUserTaskLimit(userId: string, dto: SetUserTaskLimitDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { taskLimit: dto.taskLimit },
+      select: {
+        id: true,
+        username: true,
+        taskLimit: true,
+      },
+    });
+  }
+
+  // Get user's assigned task sequence
+  async getUserTaskSequence(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, taskLimit: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const tasks = await this.prisma.productTask.findMany({
+      where: { userId },
+      include: { product: true },
+      orderBy: { stepNumber: 'asc' },
+    });
+
+    return {
+      user,
+      taskCount: tasks.length,
+      taskLimit: user.taskLimit,
+      tasks,
+    };
+  }
+
+  // Override commission rate / price / product snapshot for a specific task step
+  async overrideTaskCommission(taskId: string, dto: OverrideTaskCommissionDto) {
+    const task = await this.prisma.productTask.findUnique({
+      where: { id: taskId },
+      include: { product: true },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    const commissionVal =
+      dto.commissionSnapshot ?? dto.commissionRate ?? dto.commission;
+    const priceVal = dto.priceSnapshot ?? dto.price;
+
+    if (
+      commissionVal === undefined &&
+      priceVal === undefined &&
+      !dto.productId
+    ) {
+      throw new BadRequestException(
+        'At least one of price (priceSnapshot), commission (commissionRate/commissionSnapshot), or productId must be provided',
+      );
+    }
+
+    const dataToUpdate: Prisma.ProductTaskUpdateInput = {};
+
+    if (commissionVal !== undefined) {
+      dataToUpdate.commissionSnapshot = new Prisma.Decimal(commissionVal);
+    }
+
+    if (priceVal !== undefined) {
+      dataToUpdate.priceSnapshot = new Prisma.Decimal(priceVal);
+    }
+
+    if (dto.productId) {
+      const product = await this.prisma.product.findUnique({
+        where: { id: dto.productId },
+      });
+      if (!product) {
+        throw new NotFoundException('Specified product not found');
+      }
+      dataToUpdate.product = { connect: { id: dto.productId } };
+      if (priceVal === undefined) {
+        dataToUpdate.priceSnapshot = product.price;
+      }
+    }
+
+    const updatedTask = await this.prisma.productTask.update({
+      where: { id: taskId },
+      data: dataToUpdate,
+      include: { product: true },
+    });
+
+    return {
+      message: `Successfully overridden task step #${updatedTask.stepNumber} (Price: $${updatedTask.priceSnapshot}, Commission: ${updatedTask.commissionSnapshot}%)`,
+      task: updatedTask,
+    };
+  }
+
+  // Pre-generate / Allocate tasks (default 33 tasks, max limit 33) for a user so admin can customize specific steps before user starts
+  async preGenerateUserTasks(userId: string, dto: PreGenerateUserTasksDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const maxLimit = user.taskLimit || 33;
+
+    // Get current maximum stepNumber for user
+    const existingTasksCount = await this.prisma.productTask.count({
+      where: { userId },
+    });
+
+    if (existingTasksCount >= maxLimit) {
+      throw new BadRequestException(
+        `User already has ${existingTasksCount} tasks pre-generated, reaching maximum limit of ${maxLimit} tasks`,
+      );
+    }
+
+    const countRequested = dto?.count ?? 33;
+    const countToGenerate = Math.min(countRequested, maxLimit - existingTasksCount);
+
+    if (countToGenerate <= 0) {
+      throw new BadRequestException(
+        `Cannot pre-generate tasks. User has reached maximum task limit of ${maxLimit}`,
+      );
+    }
+
+    // Get active products to pick from
+    const activeProducts = await this.prisma.product.findMany({
+      where: { isActive: true },
+    });
+
+    if (activeProducts.length === 0) {
+      throw new BadRequestException('No active products available to assign tasks');
+    }
+
+    const tasksToCreate: Prisma.ProductTaskCreateManyInput[] = [];
+
+    for (let i = 0; i < countToGenerate; i++) {
+      const stepNumber = existingTasksCount + i + 1;
+      const randomProduct = activeProducts[Math.floor(Math.random() * activeProducts.length)];
+
+      tasksToCreate.push({
+        userId,
+        productId: randomProduct.id,
+        stepNumber,
+        priceSnapshot: randomProduct.price,
+        commissionSnapshot: randomProduct.commissionRate,
+      });
+    }
+
+    await this.prisma.productTask.createMany({
+      data: tasksToCreate,
+    });
+
+    const allUserTasks = await this.prisma.productTask.findMany({
+      where: { userId },
+      include: { product: true },
+      orderBy: { stepNumber: 'asc' },
+    });
+
+    return {
+      message: `Pre-generated ${countToGenerate} task slots for user ${user.username}`,
+      totalTasks: allUserTasks.length,
+      tasks: allUserTasks,
+    };
   }
 }

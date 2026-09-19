@@ -50,9 +50,16 @@ export class TasksController {
     return this.tasksService.submitTask(userId, taskId, dto);
   }
 
+  @ApiOperation({ summary: 'Get only pending task for the logged-in user' })
+  @Get('pending')
+  async getPendingTask(@CurrentUser('id') userId: string) {
+    return this.tasksService.getPendingTask(userId);
+  }
+
   @ApiOperation({ summary: 'Get all tasks for the logged-in user' })
   @Get()
   async getUserTasks(@CurrentUser('id') userId: string) {
     return this.tasksService.getUserTasks(userId);
   }
 }
+

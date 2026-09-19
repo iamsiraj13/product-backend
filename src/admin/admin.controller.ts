@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Put,
+  Patch,
   Delete,
   Get,
   Body,
@@ -40,6 +41,9 @@ import {
   UserQueryDto,
   ProductQueryDto,
   UpdateUserDto,
+  SetUserTaskLimitDto,
+  OverrideTaskCommissionDto,
+  PreGenerateUserTasksDto,
 } from './dto/admin.dto';
 import { getBaseUrl, formatImageUrl } from '../common/utils/url.util';
 
@@ -224,5 +228,44 @@ export class AdminController {
   @Roles(Role.ADMIN)
   async createAgent(@Body() dto: CreateAgentDto) {
     return this.adminService.createAgent(dto);
+  }
+
+  // --- Task Limit & Custom Task Commission Override Endpoints ---
+
+  @ApiOperation({ summary: 'Set custom task limit allocation for a user' })
+  @ApiParam({ name: 'id', description: 'Target user ID' })
+  @Patch('users/:id/task-limit')
+  async setUserTaskLimit(
+    @Param('id') userId: string,
+    @Body() dto: SetUserTaskLimitDto,
+  ) {
+    return this.adminService.setUserTaskLimit(userId, dto);
+  }
+
+  @ApiOperation({ summary: 'Get user task sequence and assigned tasks list' })
+  @ApiParam({ name: 'id', description: 'Target user ID' })
+  @Get('users/:id/tasks')
+  async getUserTaskSequence(@Param('id') userId: string) {
+    return this.adminService.getUserTaskSequence(userId);
+  }
+
+  @ApiOperation({ summary: 'Pre-generate/allocate task slots for user sequence' })
+  @ApiParam({ name: 'id', description: 'Target user ID' })
+  @Post('users/:id/tasks/pre-generate')
+  async preGenerateUserTasks(
+    @Param('id') userId: string,
+    @Body() dto: PreGenerateUserTasksDto,
+  ) {
+    return this.adminService.preGenerateUserTasks(userId, dto);
+  }
+
+  @ApiOperation({ summary: 'Override commission rate or price snapshot for a specific task step' })
+  @ApiParam({ name: 'taskId', description: 'ProductTask ID to override' })
+  @Patch('tasks/:taskId/override')
+  async overrideTaskCommission(
+    @Param('taskId') taskId: string,
+    @Body() dto: OverrideTaskCommissionDto,
+  ) {
+    return this.adminService.overrideTaskCommission(taskId, dto);
   }
 }

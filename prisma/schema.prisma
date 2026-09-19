@@ -49,6 +49,7 @@ model User {
   childAccounts User[]  @relation("ParentChildAccounts")
 
   isActive  Boolean  @default(true)
+  taskLimit Int      @default(33)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -81,6 +82,7 @@ model ProductTask {
   user      User    @relation(fields: [userId], references: [id])
   product   Product @relation(fields: [productId], references: [id])
 
+  stepNumber         Int      @default(1)
   priceSnapshot      Decimal  @db.Decimal(12, 2)
   commissionSnapshot Decimal  @db.Decimal(5, 2)
   earnedCommission   Decimal? @db.Decimal(12, 2)
@@ -93,6 +95,7 @@ model ProductTask {
   completedAt DateTime?
 
   @@index([userId, status])
+  @@index([userId, stepNumber])
 }
 
 model Transaction {
