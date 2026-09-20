@@ -64,7 +64,7 @@ export class UsersService {
           gte: startOfDay,
         },
         status: {
-          in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED],
+          in: [TaskStatus.GENERATED, TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED],
         },
       },
     });

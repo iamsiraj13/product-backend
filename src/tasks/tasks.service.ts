@@ -44,11 +44,13 @@ export class TasksService {
       );
     }
 
-    // 2. Check if user already has an active task in progress
+    // 2. Check if user already has an active task in progress or pending
     const activeTask = await this.prisma.productTask.findFirst({
       where: {
         userId,
-        status: TaskStatus.IN_PROGRESS,
+        status: {
+          in: [TaskStatus.PENDING],
+        },
       },
       include: {
         product: true,
@@ -160,10 +162,10 @@ export class TasksService {
         data: { balance: balanceAfter },
       });
 
-      // Update Task status to IN_PROGRESS
+      // Update Task status to PENDING
       const updatedTask = await tx.productTask.update({
         where: { id: taskId },
-        data: { status: TaskStatus.IN_PROGRESS },
+        data: { status: TaskStatus.PENDING },
         include: { product: true },
       });
 
@@ -191,7 +193,7 @@ export class TasksService {
   // Submit task review: Refund product price + credit earned commission
   async submitTask(userId: string, taskId: string, dto: SubmitTaskDto) {
     return this.prisma.$transaction(async (tx) => {
-      const task = await tx.productTask.findUnique({
+      let task = await tx.productTask.findUnique({
         where: { id: taskId },
         include: { product: true },
       });
@@ -200,25 +202,64 @@ export class TasksService {
         throw new NotFoundException('Task not found');
       }
 
-      if (task.status !== TaskStatus.IN_PROGRESS) {
-        throw new BadRequestException(
-          `Task cannot be submitted because its current status is ${task.status}`,
-        );
+      if (task.status === TaskStatus.COMPLETED) {
+        throw new BadRequestException('Task has already been completed');
       }
 
-      const user = await tx.user.findUnique({ where: { id: userId } });
+      let user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) {
         throw new NotFoundException('User not found');
       }
 
+      // If task is in GENERATED state (not yet started), auto-start it first to debit priceSnapshot
+      if (task.status === TaskStatus.GENERATED) {
+        if (!user.isActive) {
+          throw new BadRequestException('User inactive or invalid');
+        }
+
+        const startBalanceBefore = new Prisma.Decimal(user.balance.toString());
+        const priceToDebit = new Prisma.Decimal(task.priceSnapshot.toString());
+        const startBalanceAfter = startBalanceBefore.sub(priceToDebit);
+
+        // Debit User Balance for task start
+        await tx.user.update({
+          where: { id: userId },
+          data: { balance: startBalanceAfter },
+        });
+
+        // Update status to PENDING
+        task = await tx.productTask.update({
+          where: { id: taskId },
+          data: { status: TaskStatus.PENDING },
+          include: { product: true },
+        });
+
+        // Log TASK_START transaction
+        await tx.transaction.create({
+          data: {
+            userId,
+            type: TransactionType.DEBIT,
+            amount: priceToDebit,
+            balanceBefore: startBalanceBefore,
+            balanceAfter: startBalanceAfter,
+            referenceType: 'TASK_START',
+            referenceId: taskId,
+            note: `Started product task #${taskId.substring(0, 8)} - debited snapshot price`,
+          },
+        });
+
+        // Update user balance reference for completion step below
+        user.balance = startBalanceAfter;
+      }
+
       const priceSnapshot = new Prisma.Decimal(task.priceSnapshot.toString());
+      const balanceBefore = new Prisma.Decimal(user.balance.toString());
       const commissionRate = new Prisma.Decimal(task.commissionSnapshot.toString());
 
       // earnedCommission = priceSnapshot * (commissionRate / 100)
       const earnedCommission = priceSnapshot.mul(commissionRate).div(100);
       const totalCreditAmount = priceSnapshot.add(earnedCommission);
 
-      const balanceBefore = new Prisma.Decimal(user.balance.toString());
       const balanceAfter = balanceBefore.add(totalCreditAmount);
 
       // Credit balance
@@ -255,6 +296,7 @@ export class TasksService {
       });
 
       return {
+        message: 'Real transaction completed',
         task: completedTask,
         earnedCommission,
         updatedBalance: balanceAfter,
@@ -268,7 +310,7 @@ export class TasksService {
       where: {
         userId,
         status: {
-          in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS],
+          in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS],
         },
       },
       include: {
@@ -301,7 +343,7 @@ export class TasksService {
       where: {
         userId,
         status: {
-          in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS],
+          in: [TaskStatus.PENDING],
         },
       },
       include: {

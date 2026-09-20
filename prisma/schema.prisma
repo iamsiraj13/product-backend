@@ -19,6 +19,7 @@ enum AccountType {
 
 enum TaskStatus {
   GENERATED
+  PENDING
   IN_PROGRESS
   COMPLETED
   CANCELLED

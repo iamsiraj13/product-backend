@@ -74,7 +74,7 @@ describe('TasksService', () => {
       prismaService.productTask.count.mockResolvedValue(5);
       prismaService.productTask.findFirst.mockResolvedValue({
         id: 'existing-task',
-        status: TaskStatus.IN_PROGRESS,
+        status: TaskStatus.PENDING,
       });
 
       await expect(service.generateTask('usr-1')).rejects.toThrow(
@@ -174,7 +174,7 @@ describe('TasksService', () => {
       });
       prismaService.productTask.update.mockResolvedValue({
         ...taskGenerated,
-        status: TaskStatus.IN_PROGRESS,
+        status: TaskStatus.PENDING,
       });
 
       const result = await service.startTask('usr-1', 'task-overridden-1');
@@ -198,7 +198,7 @@ describe('TasksService', () => {
   });
 
   describe('submitTask', () => {
-    it('should refund product price and credit earned commission in transaction', async () => {
+    it('should refund product price and credit earned commission in transaction for IN_PROGRESS task', async () => {
       const taskInProg = {
         id: 'task-100',
         userId: 'usr-1',
@@ -226,6 +226,7 @@ describe('TasksService', () => {
         comment: 'Great product quality!',
       });
 
+      expect(result.message).toBe('Real transaction completed');
       expect(result.earnedCommission.toString()).toBe('5');
       expect(result.updatedBalance.toString()).toBe('155'); // $100 + $50 price + $5 commission
       expect(prismaService.transaction.create).toHaveBeenCalledWith({
@@ -236,6 +237,71 @@ describe('TasksService', () => {
           referenceType: 'TASK_COMPLETE',
         }),
       });
+    });
+
+    it('should auto-start task if status is GENERATED and then submit', async () => {
+      const taskGenerated = {
+        id: 'task-gen-100',
+        userId: 'usr-1',
+        priceSnapshot: new Prisma.Decimal('50.00'),
+        commissionSnapshot: new Prisma.Decimal('10.00'),
+        status: TaskStatus.GENERATED,
+      };
+
+      const taskInProg = {
+        ...taskGenerated,
+        status: TaskStatus.PENDING,
+      };
+
+      const taskCompleted = {
+        ...taskInProg,
+        status: TaskStatus.COMPLETED,
+        earnedCommission: new Prisma.Decimal('5.00'),
+      };
+
+      prismaService.productTask.findUnique.mockResolvedValue(taskGenerated);
+      prismaService.user.findUnique.mockResolvedValue(mockUser); // balance: 100.00
+      prismaService.productTask.update
+        .mockResolvedValueOnce(taskInProg)
+        .mockResolvedValueOnce(taskCompleted);
+
+      const result = await service.submitTask('usr-1', 'task-gen-100', {
+        rating: 5,
+      });
+
+      expect(result.message).toBe('Real transaction completed');
+      expect(prismaService.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'usr-1',
+          type: TransactionType.DEBIT,
+          amount: new Prisma.Decimal('50.00'),
+          referenceType: 'TASK_START',
+        }),
+      });
+      expect(prismaService.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'usr-1',
+          type: TransactionType.CREDIT,
+          amount: new Prisma.Decimal('55.00'),
+          referenceType: 'TASK_COMPLETE',
+        }),
+      });
+    });
+
+    it('should throw BadRequestException if task is already COMPLETED', async () => {
+      const taskCompleted = {
+        id: 'task-100',
+        userId: 'usr-1',
+        priceSnapshot: new Prisma.Decimal('50.00'),
+        commissionSnapshot: new Prisma.Decimal('10.00'),
+        status: TaskStatus.COMPLETED,
+      };
+
+      prismaService.productTask.findUnique.mockResolvedValue(taskCompleted);
+
+      await expect(
+        service.submitTask('usr-1', 'task-100', { rating: 5 }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -257,7 +323,7 @@ describe('TasksService', () => {
         where: {
           userId: 'usr-1',
           status: {
-            in: [TaskStatus.GENERATED, TaskStatus.IN_PROGRESS],
+            in: [TaskStatus.PENDING],
           },
         },
         include: {

@@ -51,7 +51,7 @@ Copy these interfaces into your Next.js project (e.g. `@/types/api.ts`):
 ```typescript
 export type Role = 'ADMIN' | 'AGENT' | 'USER';
 export type AccountType = 'MAIN' | 'TRAINING';
-export type TaskStatus = 'GENERATED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type TaskStatus = 'GENERATED' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TransactionType = 'CREDIT' | 'DEBIT';
 
 export interface User {
@@ -273,7 +273,7 @@ export interface UserTasksResponse {
 - **Description**: Randomly picks an active product where `price <= user.balance` and creates a new task snapshot with `TaskStatus.GENERATED`.
 - **Rules**:
   - Max 33 tasks per day per user.
-  - Cannot generate if user already has an active pending task (`GENERATED` or `IN_PROGRESS`).
+  - Cannot generate if user already has an active pending task (`PENDING` or `IN_PROGRESS`).
 
 **Success Response (201 Created)**:
 ```json
@@ -306,7 +306,7 @@ export interface UserTasksResponse {
 #### 6. Start Task
 - **Method & Path**: `POST /api/v1/tasks/:id/start`
 - **Auth Guard**: Bearer JWT Required
-- **Description**: Locks the task into status `IN_PROGRESS` and debits the product `priceSnapshot` from user's balance.
+- **Description**: Locks the task into status `PENDING` and debits the product `priceSnapshot` from user's balance.
 
 **URL Parameter**: `id` - Task ID
 
