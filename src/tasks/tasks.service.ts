@@ -153,7 +153,12 @@ export class TasksService {
       const balanceBefore = new Prisma.Decimal(user.balance.toString());
       const priceToDebit = new Prisma.Decimal(task.priceSnapshot.toString());
 
-      // Debit User Balance (allows negative balance for overridden/high-price tasks)
+      // if (balanceBefore.lt(priceToDebit)) {
+      //   throw new BadRequestException(
+      //     `Insufficient balance to start task. Your current balance ($${balanceBefore}) is less than the required task price ($${priceToDebit}). Please deposit funds.`,
+      //   );
+      // }
+
       const balanceAfter = balanceBefore.sub(priceToDebit);
 
       // Debit User Balance
@@ -211,14 +216,31 @@ export class TasksService {
         throw new NotFoundException('User not found');
       }
 
+      const priceSnapshot = new Prisma.Decimal(task.priceSnapshot.toString());
+      const userBalance = new Prisma.Decimal(user.balance.toString());
+
+      // Calculate effective balance:
+      // If task is GENERATED, balance has not been debited yet (effectiveBalance = userBalance).
+      // If task is PENDING, priceSnapshot was already debited when started (effectiveBalance = userBalance + priceSnapshot).
+      const effectiveBalance =
+        task.status === TaskStatus.GENERATED
+          ? userBalance
+          : userBalance.add(priceSnapshot);
+
+      if (effectiveBalance.lt(priceSnapshot)) {
+        throw new BadRequestException(
+          `Insufficient balance to submit task. Your current balance ($${effectiveBalance}) is less than the required task price ($${priceSnapshot}). Please deposit funds.`,
+        );
+      }
+
       // If task is in GENERATED state (not yet started), auto-start it first to debit priceSnapshot
       if (task.status === TaskStatus.GENERATED) {
         if (!user.isActive) {
           throw new BadRequestException('User inactive or invalid');
         }
 
-        const startBalanceBefore = new Prisma.Decimal(user.balance.toString());
-        const priceToDebit = new Prisma.Decimal(task.priceSnapshot.toString());
+        const startBalanceBefore = userBalance;
+        const priceToDebit = priceSnapshot;
         const startBalanceAfter = startBalanceBefore.sub(priceToDebit);
 
         // Debit User Balance for task start
@@ -252,7 +274,6 @@ export class TasksService {
         user.balance = startBalanceAfter;
       }
 
-      const priceSnapshot = new Prisma.Decimal(task.priceSnapshot.toString());
       const balanceBefore = new Prisma.Decimal(user.balance.toString());
       const commissionRate = new Prisma.Decimal(task.commissionSnapshot.toString());
 

@@ -157,7 +157,7 @@ describe('TasksService', () => {
   });
 
   describe('startTask', () => {
-    it('should debit user balance and update status to IN_PROGRESS even if price exceeds balance', async () => {
+    it('should debit user balance and update status to PENDING even if price exceeds balance', async () => {
       const taskGenerated = {
         id: 'task-overridden-1',
         userId: 'usr-1',
@@ -180,17 +180,42 @@ describe('TasksService', () => {
       const result = await service.startTask('usr-1', 'task-overridden-1');
 
       expect(result.updatedBalance.toString()).toBe('-150');
+    });
+
+    it('should debit user balance and update status to PENDING when balance is sufficient', async () => {
+      const taskGenerated = {
+        id: 'task-100',
+        userId: 'usr-1',
+        priceSnapshot: new Prisma.Decimal('50.00'),
+        commissionSnapshot: new Prisma.Decimal('10.00'),
+        status: TaskStatus.GENERATED,
+      };
+
+      prismaService.productTask.findUnique.mockResolvedValue(taskGenerated);
+      prismaService.user.findUnique.mockResolvedValue(mockUser); // balance: 100.00
+      prismaService.user.update.mockResolvedValue({
+        ...mockUser,
+        balance: new Prisma.Decimal('50.00'),
+      });
+      prismaService.productTask.update.mockResolvedValue({
+        ...taskGenerated,
+        status: TaskStatus.PENDING,
+      });
+
+      const result = await service.startTask('usr-1', 'task-100');
+
+      expect(result.updatedBalance.toString()).toBe('50');
       expect(prismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'usr-1' },
-        data: { balance: new Prisma.Decimal('-150.00') },
+        data: { balance: new Prisma.Decimal('50.00') },
       });
       expect(prismaService.transaction.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           userId: 'usr-1',
           type: TransactionType.DEBIT,
-          amount: new Prisma.Decimal('250.00'),
+          amount: new Prisma.Decimal('50.00'),
           balanceBefore: new Prisma.Decimal('100.00'),
-          balanceAfter: new Prisma.Decimal('-150.00'),
+          balanceAfter: new Prisma.Decimal('50.00'),
           referenceType: 'TASK_START',
         }),
       });
@@ -301,6 +326,26 @@ describe('TasksService', () => {
 
       await expect(
         service.submitTask('usr-1', 'task-100', { rating: 5 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if submitting PENDING task where effective balance < priceSnapshot', async () => {
+      const taskPending = {
+        id: 'task-pending-overridden',
+        userId: 'usr-1',
+        priceSnapshot: new Prisma.Decimal('250.00'),
+        commissionSnapshot: new Prisma.Decimal('15.00'),
+        status: TaskStatus.PENDING,
+      };
+
+      prismaService.productTask.findUnique.mockResolvedValue(taskPending);
+      prismaService.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        balance: new Prisma.Decimal('-150.00'), // effective: -150 + 250 = 100 < 250
+      });
+
+      await expect(
+        service.submitTask('usr-1', 'task-pending-overridden', { rating: 5 }),
       ).rejects.toThrow(BadRequestException);
     });
   });
