@@ -13,6 +13,12 @@ export class RegisterDto {
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
   password: string;
 
+  @ApiProperty({ example: '123456', description: 'Withdrawal password for security verification' })
+  @IsString()
+  @IsNotEmpty({ message: 'Withdrawal password is required' })
+  @MinLength(4, { message: 'Withdrawal password must be at least 4 characters long' })
+  withdrawalPassword: string;
+
   @ApiPropertyOptional({ example: 'john@example.com', description: 'User email address' })
   @IsOptional()
   @IsEmail()

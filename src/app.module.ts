@@ -13,6 +13,8 @@ import { StorageModule } from './storage/storage.module';
 import { AdminModule } from './admin/admin.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ProductsModule } from './products/products.module';
+import { WalletModule } from './wallet/wallet.module';
+import { WithdrawalsModule } from './withdrawals/withdrawals.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
@@ -38,6 +40,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     AdminModule,
     TasksModule,
     ProductsModule,
+    WalletModule,
+    WithdrawalsModule,
   ],
   controllers: [AppController],
   providers: [

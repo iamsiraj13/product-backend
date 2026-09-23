@@ -19,7 +19,7 @@ import { SubmitTaskDto } from './dto/tasks.dto';
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(private readonly tasksService: TasksService) { }
 
   @ApiOperation({ summary: 'Generate a new commission task for logged-in user' })
   @Post('generate')

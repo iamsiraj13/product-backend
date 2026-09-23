@@ -61,8 +61,9 @@ export class AuthService {
       }
     }
 
-    // 3. Hash password & generate unique user invitation code
+    // 3. Hash passwords & generate unique user invitation code
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const withdrawalPasswordHash = await bcrypt.hash(dto.withdrawalPassword, 10);
     let newUserInviteCode = this.generateUniqueInviteCode();
 
     // Ensure invite code is unique
@@ -77,6 +78,7 @@ export class AuthService {
         email: dto.email || null,
         phone: dto.phone || null,
         passwordHash,
+        withdrawalPasswordHash,
         invitationCode: newUserInviteCode,
         role: Role.USER,
         accountType: AccountType.MAIN,

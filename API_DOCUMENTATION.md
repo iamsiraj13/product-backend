@@ -157,6 +157,7 @@ export interface UserTasksResponse {
 {
   "username": "johndoe",
   "password": "password123",
+  "withdrawalPassword": "123456",
   "email": "john@example.com",
   "phone": "+1234567890",
   "invitationCode": "INVITE123"
@@ -864,3 +865,162 @@ export async function runTaskLifecycle() {
   console.log('Updated Balance:', submitResult.updatedBalance);
 }
 ```
+
+---
+
+## 10. Wallet Management Endpoints
+
+### 10.1 Get User Wallet Addresses
+- **HTTP Method**: `GET`
+- **Endpoint**: `/api/v1/wallet/addresses`
+- **Headers**: `Authorization: Bearer <accessToken>`
+- **Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "w1-uuid",
+      "network": "TRC20",
+      "address": "T9x1234567890123456789012345678901",
+      "createdAt": "2026-09-22T22:50:00.000Z",
+      "updatedAt": "2026-09-22T22:50:00.000Z"
+    }
+  ]
+}
+```
+
+### 10.2 Save or Update Wallet Address (Upsert)
+- **HTTP Method**: `POST`
+- **Endpoint**: `/api/v1/wallet/addresses`
+- **Headers**: `Authorization: Bearer <accessToken>`
+- **Request Body**:
+```json
+{
+  "network": "TRC20",
+  "address": "T9x1234567890123456789012345678901"
+}
+```
+- **Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "TRC20 wallet address saved successfully",
+  "data": {
+    "id": "w1-uuid",
+    "network": "TRC20",
+    "address": "T9x1234567890123456789012345678901"
+  }
+}
+```
+
+---
+
+## 11. Withdrawal Endpoints
+
+### 11.1 Submit Withdrawal Request
+- **HTTP Method**: `POST`
+- **Endpoint**: `/api/v1/withdrawals`
+- **Headers**: `Authorization: Bearer <accessToken>`
+- **Request Body**:
+```json
+{
+  "amount": 100.00,
+  "network": "TRC20",
+  "withdrawalPassword": "123456"
+}
+```
+- **Response (201 Created)**:
+```json
+{
+  "success": true,
+  "message": "Withdrawal request submitted successfully",
+  "data": {
+    "id": "req-101",
+    "userId": "user-uuid",
+    "network": "TRC20",
+    "walletAddress": "T9x1234567890123456789012345678901",
+    "amount": "100.00",
+    "status": "PENDING",
+    "createdAt": "2026-09-22T23:00:00.000Z"
+  }
+}
+```
+
+### 11.2 Get User Withdrawal History
+- **HTTP Method**: `GET`
+- **Endpoint**: `/api/v1/withdrawals/history?page=1&limit=10&status=PENDING`
+- **Headers**: `Authorization: Bearer <accessToken>`
+- **Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "req-101",
+      "amount": "100.00",
+      "network": "TRC20",
+      "walletAddress": "T9x1234567890123456789012345678901",
+      "status": "PENDING",
+      "createdAt": "2026-09-22T23:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+
+### 11.3 Admin - Update Withdrawal Status (Approve / Reject Unified Endpoint)
+- **HTTP Method**: `PATCH`
+- **Endpoint**: `/api/v1/admin/withdrawals/:id/status`
+- **Headers**: `Authorization: Bearer <adminToken>`
+
+**Request Body (To Approve)**:
+```json
+{
+  "status": "APPROVED"
+}
+```
+
+**Request Body (To Reject)**:
+```json
+{
+  "status": "REJECTED",
+  "rejectionReason": "Invalid wallet address provided"
+}
+```
+
+**Response (200 OK - Approved)**:
+```json
+{
+  "success": true,
+  "message": "Withdrawal request approved successfully",
+  "data": {
+    "id": "req-101",
+    "status": "APPROVED",
+    "processedAt": "2026-09-22T23:05:00.000Z"
+  }
+}
+```
+
+**Response (200 OK - Rejected)**:
+```json
+{
+  "success": true,
+  "message": "Withdrawal request rejected and balance refunded successfully",
+  "data": {
+    "id": "req-101",
+    "status": "REJECTED",
+    "rejectionReason": "Invalid wallet address provided"
+  }
+}
+```
+
+### 11.4 Admin - Individual Approve / Reject Endpoints (Legacy Aliases)
+- `PATCH /api/v1/admin/withdrawals/:id/approve`
+- `PATCH /api/v1/admin/withdrawals/:id/reject`
+

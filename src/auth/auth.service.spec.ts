@@ -80,6 +80,7 @@ describe('AuthService', () => {
         service.register({
           username: 'newuser',
           password: 'password123',
+          withdrawalPassword: '123456',
           invitationCode: 'INVALID',
         }),
       ).rejects.toThrow(BadRequestException);
@@ -93,6 +94,7 @@ describe('AuthService', () => {
         service.register({
           username: 'newuser',
           password: 'password123',
+          withdrawalPassword: '123456',
           invitationCode: 'REFCODE1',
         }),
       ).rejects.toThrow(ConflictException);
@@ -122,6 +124,7 @@ describe('AuthService', () => {
       const result = await service.register({
         username: 'newuser',
         password: 'password123',
+        withdrawalPassword: '123456',
         email: 'new@test.com',
         invitationCode: 'REFCODE1',
       });

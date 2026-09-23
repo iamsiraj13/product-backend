@@ -229,7 +229,7 @@ export class TasksService {
 
       if (effectiveBalance.lt(priceSnapshot)) {
         throw new BadRequestException(
-          `Insufficient balance to submit task. Your current balance ($${effectiveBalance}) is less than the required task price ($${priceSnapshot}). Please deposit funds.`,
+          `Insufficient balance to Upload Product`,
         );
       }
 
