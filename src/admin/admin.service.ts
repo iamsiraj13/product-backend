@@ -158,6 +158,28 @@ export class AdminService {
     };
   }
 
+  async deleteProduct(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.productTask.deleteMany({
+        where: { productId: id },
+      });
+
+      await tx.product.delete({
+        where: { id },
+      });
+    });
+
+    return { message: 'Product deleted successfully', id };
+  }
+
   // --- User Management ---
   async getUsers(query: UserQueryDto) {
     const { search, role, accountType, page = 1, limit = 20 } = query;

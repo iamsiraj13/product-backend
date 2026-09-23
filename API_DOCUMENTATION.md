@@ -549,6 +549,21 @@ export interface UserTasksResponse {
 
 ---
 
+#### 11.1. Delete Marketplace Product
+- **Method & Path**: `DELETE /api/v1/admin/products/:id`
+- **Auth Guard**: Bearer JWT (`ADMIN` or `AGENT`)
+- **URL Parameter**: `id` - Product ID to delete
+
+**Success Response (200 OK)**:
+```json
+{
+  "message": "Product deleted successfully",
+  "id": "prod-uuid"
+}
+```
+
+---
+
 #### 12. List Marketplace Products (Paginated)
 - **Method & Path**: `GET /api/v1/admin/products`
 - **Auth Guard**: Bearer JWT (`ADMIN` or `AGENT`)

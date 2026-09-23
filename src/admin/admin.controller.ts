@@ -170,6 +170,13 @@ export class AdminController {
     return this.adminService.getProducts(query, req);
   }
 
+  @ApiOperation({ summary: 'Delete marketplace product' })
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @Delete('products/:id')
+  async deleteProduct(@Param('id') id: string) {
+    return this.adminService.deleteProduct(id);
+  }
+
   // User Accounts Search & Query
   @ApiOperation({ summary: 'Search and query user accounts' })
   @Get('users')

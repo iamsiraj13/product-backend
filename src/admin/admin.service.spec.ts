@@ -12,6 +12,7 @@ describe('AdminService - Product Management', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
       findMany: jest.fn(),
     },
     user: {
@@ -145,6 +146,42 @@ describe('AdminService - Product Management', () => {
           commissionRate: new Prisma.Decimal(2.0),
           commission: new Prisma.Decimal(8.0),
         },
+      });
+    });
+  });
+
+  describe('deleteProduct', () => {
+    it('should throw NotFoundException if product is not found', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue(null);
+      await expect(service.deleteProduct('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should successfully delete product and associated tasks in transaction', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue({
+        id: 'prod-1',
+        title: 'Test Product',
+      });
+      mockPrismaService.$transaction = jest.fn((cb) => cb(mockPrismaService));
+      mockPrismaService.productTask.deleteMany = jest
+        .fn()
+        .mockResolvedValue({ count: 1 });
+      mockPrismaService.product.delete = jest
+        .fn()
+        .mockResolvedValue({ id: 'prod-1' });
+
+      const result = await service.deleteProduct('prod-1');
+
+      expect(mockPrismaService.productTask.deleteMany).toHaveBeenCalledWith({
+        where: { productId: 'prod-1' },
+      });
+      expect(mockPrismaService.product.delete).toHaveBeenCalledWith({
+        where: { id: 'prod-1' },
+      });
+      expect(result).toEqual({
+        message: 'Product deleted successfully',
+        id: 'prod-1',
       });
     });
   });
