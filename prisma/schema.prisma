@@ -41,6 +41,7 @@ model User {
   accountType            AccountType @default(MAIN)
   balance                Decimal     @default(0.00) @db.Decimal(12, 2)
   invitationCode         String      @unique
+  avatar                 String?
 
   invitedById String?
   invitedBy   User?   @relation("Invitations", fields: [invitedById], references: [id])

@@ -58,7 +58,7 @@ export class AdminController {
     private readonly storageService: StorageService,
   ) { }
 
-  // Local Image Upload Endpoint
+  // Local / Cloudinary Image Upload Endpoint
   @ApiOperation({ summary: 'Upload image file' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -81,9 +81,9 @@ export class AdminController {
     if (!file) {
       throw new BadRequestException('Image file is required');
     }
-    const relativeUrl = await this.storageService.saveFile(file);
+    const imageUrl = await this.storageService.uploadFile(file, 'general');
     const baseUrl = getBaseUrl(req);
-    return { url: formatImageUrl(relativeUrl, baseUrl) };
+    return { url: formatImageUrl(imageUrl, baseUrl) };
   }
 
   // Marketplace Product Management
@@ -116,7 +116,7 @@ export class AdminController {
     @Req() req?: Request,
   ) {
     if (file) {
-      dto.image = await this.storageService.saveFile(file);
+      dto.image = await this.storageService.uploadFile(file, 'products');
     }
     return this.adminService.createProduct(dto, req);
   }
@@ -151,7 +151,7 @@ export class AdminController {
     @Req() req?: Request,
   ) {
     if (file) {
-      dto.image = await this.storageService.saveFile(file);
+      dto.image = await this.storageService.uploadFile(file, 'products');
     }
     return this.adminService.updateProduct(id, dto, req);
   }
@@ -185,15 +185,22 @@ export class AdminController {
   }
 
   // Update User Profile
-  @ApiOperation({ summary: 'Update any user profile' })
+  @ApiOperation({ summary: 'Update any user profile with optional avatar file upload' })
   @ApiParam({ name: 'id', description: 'Target user ID' })
+  @ApiConsumes('multipart/form-data')
   @Put('users/:id')
+  @UseInterceptors(FileInterceptor('avatar'))
   async updateUser(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
+    if (file) {
+      dto.avatar = await this.storageService.uploadFile(file, 'users');
+    }
     return this.adminService.updateUser(id, dto);
   }
+
 
   // Delete User Account
   @ApiOperation({ summary: 'Delete any user account' })

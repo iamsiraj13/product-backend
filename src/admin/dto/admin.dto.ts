@@ -253,6 +253,11 @@ export class UpdateUserDto {
   @IsNumber()
   @Min(1)
   taskLimit?: number;
+
+  @ApiPropertyOptional({ description: 'User avatar/profile image URL or file' })
+  @IsOptional()
+  @IsString()
+  avatar?: string;
 }
 
 export class SetUserTaskLimitDto {

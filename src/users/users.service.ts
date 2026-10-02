@@ -1,10 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
+import { formatImageUrl } from '../common/utils/url.util';
 import { TaskStatus } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
+  ) { }
 
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -14,6 +19,7 @@ export class UsersService {
         username: true,
         email: true,
         phone: true,
+        avatar: true,
         role: true,
         accountType: true,
         balance: true,
@@ -118,6 +124,7 @@ export class UsersService {
 
     return {
       ...user,
+      avatar: formatImageUrl(user.avatar),
       todayTaskProgress: {
         totalGeneratedToday: todayTaskCount,
         completedToday: completedTasksToday,
@@ -127,9 +134,45 @@ export class UsersService {
       commissionSummary: {
         totalEarned: totalEarnedCommission,
         todayEarned: todayEarnedCommission,
-
       },
+    };
+  }
 
+  async updateAvatar(userId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Avatar image file is required');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User profile not found');
+    }
+
+    const avatarUrl = await this.storageService.uploadFile(file, 'users');
+
+    // Delete old avatar if exists
+    if (user.avatar) {
+      await this.storageService.deleteFile(user.avatar);
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarUrl },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        avatar: true,
+      },
+    });
+
+    return {
+      ...updatedUser,
+      avatar: formatImageUrl(updatedUser.avatar),
     };
   }
 }
+

@@ -1,11 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from './admin.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 describe('AdminService - Product Management', () => {
   let service: AdminService;
+
+  const mockStorageService = {
+    saveFile: jest.fn().mockResolvedValue('https://res.cloudinary.com/test/image.jpg'),
+    uploadFile: jest.fn().mockResolvedValue('https://res.cloudinary.com/test/image.jpg'),
+    deleteFile: jest.fn().mockResolvedValue(true),
+  };
 
   const mockPrismaService = {
     product: {
@@ -44,12 +51,17 @@ describe('AdminService - Product Management', () => {
           provide: PrismaService,
           useValue: mockPrismaService,
         },
+        {
+          provide: StorageService,
+          useValue: mockStorageService,
+        },
       ],
     }).compile();
 
     service = module.get<AdminService>(AdminService);
     jest.clearAllMocks();
   });
+
 
   describe('createProduct', () => {
     it('should throw BadRequestException if image is missing', async () => {

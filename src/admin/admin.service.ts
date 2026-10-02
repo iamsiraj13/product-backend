@@ -23,10 +23,14 @@ import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import type { Request } from 'express';
 import { getBaseUrl, formatImageUrl } from '../common/utils/url.util';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
+  ) { }
 
   private generateUniqueInviteCode(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -77,7 +81,12 @@ export class AdminService {
 
     const dataToUpdate: Prisma.ProductUpdateInput = {};
     if (dto.title !== undefined) dataToUpdate.title = dto.title;
-    if (dto.image !== undefined) dataToUpdate.image = dto.image;
+    if (dto.image !== undefined) {
+      if (product.image && product.image !== dto.image) {
+        await this.storageService.deleteFile(product.image);
+      }
+      dataToUpdate.image = dto.image;
+    }
     if (dto.isHomeProduct !== undefined) dataToUpdate.isHomeProduct = dto.isHomeProduct;
     if (dto.isActive !== undefined) dataToUpdate.isActive = dto.isActive;
 
@@ -167,6 +176,10 @@ export class AdminService {
       throw new NotFoundException('Product not found');
     }
 
+    if (product.image) {
+      await this.storageService.deleteFile(product.image);
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.productTask.deleteMany({
         where: { productId: id },
@@ -215,6 +228,7 @@ export class AdminService {
           username: true,
           email: true,
           phone: true,
+          avatar: true,
           role: true,
           accountType: true,
           balance: true,
@@ -228,8 +242,13 @@ export class AdminService {
       }),
     ]);
 
+    const formattedUsers = users.map((u) => ({
+      ...u,
+      avatar: formatImageUrl(u.avatar),
+    }));
+
     return {
-      data: users,
+      data: formattedUsers,
       meta: {
         total,
         page,
@@ -278,8 +297,14 @@ export class AdminService {
     if (dto.balance !== undefined) dataToUpdate.balance = new Prisma.Decimal(dto.balance);
     if (dto.isActive !== undefined) dataToUpdate.isActive = dto.isActive;
     if (dto.taskLimit !== undefined) dataToUpdate.taskLimit = dto.taskLimit;
+    if (dto.avatar !== undefined) {
+      if (user.avatar && user.avatar !== dto.avatar) {
+        await this.storageService.deleteFile(user.avatar);
+      }
+      dataToUpdate.avatar = dto.avatar;
+    }
 
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id },
       data: dataToUpdate,
       select: {
@@ -287,6 +312,7 @@ export class AdminService {
         username: true,
         email: true,
         phone: true,
+        avatar: true,
         role: true,
         accountType: true,
         balance: true,
@@ -298,6 +324,11 @@ export class AdminService {
         updatedAt: true,
       },
     });
+
+    return {
+      ...updatedUser,
+      avatar: formatImageUrl(updatedUser.avatar),
+    };
   }
 
   async deleteUser(adminId: string, id: string) {
@@ -311,6 +342,10 @@ export class AdminService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    if (user.avatar) {
+      await this.storageService.deleteFile(user.avatar);
     }
 
     await this.prisma.$transaction(async (tx) => {
