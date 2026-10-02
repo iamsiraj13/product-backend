@@ -235,7 +235,6 @@ export class UpdateUserDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
   balance?: number;
 
   @ApiPropertyOptional({ example: true, description: 'Whether account is active' })
