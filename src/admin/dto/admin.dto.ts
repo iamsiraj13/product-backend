@@ -317,6 +317,14 @@ export class OverrideTaskCommissionDto {
   @Max(100)
   commissionSnapshot?: number;
 
+  @ApiPropertyOptional({ example: 15.0, description: 'Override commission rate percentage for this task step' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  commissionSnapshotRate?: number;
+
   @ApiPropertyOptional({ example: 15.0, description: 'Alias for commissionRate' })
   @IsOptional()
   @Type(() => Number)

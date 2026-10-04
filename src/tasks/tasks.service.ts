@@ -110,13 +110,18 @@ export class TasksService {
     const selectedProduct = eligibleProducts[randomIndex];
 
     // 7. Create ProductTask snapshot with stepNumber
+    const priceDec = new Prisma.Decimal(selectedProduct.price.toString());
+    const rateDec = new Prisma.Decimal(selectedProduct.commissionRate.toString());
+    const commissionSnapshot = priceDec.mul(rateDec).div(100);
+
     const newTask = await this.prisma.productTask.create({
       data: {
         userId,
         productId: selectedProduct.id,
         stepNumber: nextStepNumber,
         priceSnapshot: selectedProduct.price,
-        commissionSnapshot: selectedProduct.commissionRate,
+        commissionSnapshotRate: selectedProduct.commissionRate,
+        commissionSnapshot,
         status: TaskStatus.GENERATED,
       },
       include: {
@@ -275,10 +280,7 @@ export class TasksService {
       }
 
       const balanceBefore = new Prisma.Decimal(user.balance.toString());
-      const commissionRate = new Prisma.Decimal(task.commissionSnapshot.toString());
-
-      // earnedCommission = priceSnapshot * (commissionRate / 100)
-      const earnedCommission = priceSnapshot.mul(commissionRate).div(100);
+      const earnedCommission = new Prisma.Decimal(task.commissionSnapshot.toString());
       const totalCreditAmount = priceSnapshot.add(earnedCommission);
 
       const balanceAfter = balanceBefore.add(totalCreditAmount);

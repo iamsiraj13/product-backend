@@ -116,6 +116,7 @@ export interface ProductTask {
   userId: string;
   productId: string;
   priceSnapshot: number | string;
+  commissionSnapshotRate: number | string;
   commissionSnapshot: number | string;
   earnedCommission: number | string | null;
   rating: number | null;

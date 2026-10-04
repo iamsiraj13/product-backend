@@ -107,7 +107,8 @@ describe('TasksService', () => {
         userId: 'usr-1',
         productId: mockProduct.id,
         priceSnapshot: mockProduct.price,
-        commissionSnapshot: mockProduct.commissionRate,
+        commissionSnapshotRate: mockProduct.commissionRate,
+        commissionSnapshot: new Prisma.Decimal('5.00'),
         status: TaskStatus.GENERATED,
         product: mockProduct,
       };
@@ -123,7 +124,8 @@ describe('TasksService', () => {
           productId: mockProduct.id,
           stepNumber: 3,
           priceSnapshot: mockProduct.price,
-          commissionSnapshot: mockProduct.commissionRate,
+          commissionSnapshotRate: mockProduct.commissionRate,
+          commissionSnapshot: new Prisma.Decimal('5.00'),
           status: TaskStatus.GENERATED,
         },
         include: { product: true },
@@ -140,7 +142,8 @@ describe('TasksService', () => {
         productId: mockProduct.id,
         stepNumber: 1,
         priceSnapshot: new Prisma.Decimal('250.00'),
-        commissionSnapshot: new Prisma.Decimal('15.00'),
+        commissionSnapshotRate: new Prisma.Decimal('15.00'),
+        commissionSnapshot: new Prisma.Decimal('37.50'),
         status: TaskStatus.GENERATED,
         product: mockProduct,
       };
@@ -162,7 +165,8 @@ describe('TasksService', () => {
         id: 'task-overridden-1',
         userId: 'usr-1',
         priceSnapshot: new Prisma.Decimal('250.00'),
-        commissionSnapshot: new Prisma.Decimal('15.00'),
+        commissionSnapshotRate: new Prisma.Decimal('15.00'),
+        commissionSnapshot: new Prisma.Decimal('37.50'),
         status: TaskStatus.GENERATED,
       };
 
@@ -187,7 +191,8 @@ describe('TasksService', () => {
         id: 'task-100',
         userId: 'usr-1',
         priceSnapshot: new Prisma.Decimal('50.00'),
-        commissionSnapshot: new Prisma.Decimal('10.00'),
+        commissionSnapshotRate: new Prisma.Decimal('10.00'),
+        commissionSnapshot: new Prisma.Decimal('5.00'),
         status: TaskStatus.GENERATED,
       };
 
@@ -228,7 +233,8 @@ describe('TasksService', () => {
         id: 'task-100',
         userId: 'usr-1',
         priceSnapshot: new Prisma.Decimal('50.00'),
-        commissionSnapshot: new Prisma.Decimal('10.00'), // 10% commission = $5.00
+        commissionSnapshotRate: new Prisma.Decimal('10.00'),
+        commissionSnapshot: new Prisma.Decimal('5.00'), // $5.00 commission
         status: TaskStatus.IN_PROGRESS,
       };
 
@@ -269,7 +275,8 @@ describe('TasksService', () => {
         id: 'task-gen-100',
         userId: 'usr-1',
         priceSnapshot: new Prisma.Decimal('50.00'),
-        commissionSnapshot: new Prisma.Decimal('10.00'),
+        commissionSnapshotRate: new Prisma.Decimal('10.00'),
+        commissionSnapshot: new Prisma.Decimal('5.00'),
         status: TaskStatus.GENERATED,
       };
 
@@ -318,7 +325,8 @@ describe('TasksService', () => {
         id: 'task-100',
         userId: 'usr-1',
         priceSnapshot: new Prisma.Decimal('50.00'),
-        commissionSnapshot: new Prisma.Decimal('10.00'),
+        commissionSnapshotRate: new Prisma.Decimal('10.00'),
+        commissionSnapshot: new Prisma.Decimal('5.00'),
         status: TaskStatus.COMPLETED,
       };
 
@@ -334,7 +342,8 @@ describe('TasksService', () => {
         id: 'task-pending-overridden',
         userId: 'usr-1',
         priceSnapshot: new Prisma.Decimal('250.00'),
-        commissionSnapshot: new Prisma.Decimal('15.00'),
+        commissionSnapshotRate: new Prisma.Decimal('15.00'),
+        commissionSnapshot: new Prisma.Decimal('37.50'),
         status: TaskStatus.PENDING,
       };
 
@@ -371,7 +380,8 @@ describe('TasksService', () => {
         userId: 'trainee-1',
         stepNumber: 1,
         priceSnapshot: new Prisma.Decimal('500.00'),
-        commissionSnapshot: new Prisma.Decimal('2.00'), // earnedCommission = $10.00
+        commissionSnapshotRate: new Prisma.Decimal('2.00'),
+        commissionSnapshot: new Prisma.Decimal('10.00'), // earnedCommission = $10.00
         status: TaskStatus.PENDING,
       };
 

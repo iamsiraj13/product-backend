@@ -365,6 +365,7 @@ describe('AdminService - Product Management', () => {
         id: 'task-1',
         stepNumber: 2,
         priceSnapshot: new Prisma.Decimal('100.00'),
+        commissionSnapshotRate: new Prisma.Decimal('5.00'),
         commissionSnapshot: new Prisma.Decimal('5.00'),
       };
 
@@ -372,6 +373,7 @@ describe('AdminService - Product Management', () => {
       mockPrismaService.productTask.update = jest.fn().mockResolvedValue({
         ...existingTask,
         priceSnapshot: new Prisma.Decimal('200.00'),
+        commissionSnapshotRate: new Prisma.Decimal('6.00'),
         commissionSnapshot: new Prisma.Decimal('12.00'),
       });
 
@@ -384,6 +386,7 @@ describe('AdminService - Product Management', () => {
         where: { id: 'task-1' },
         data: {
           priceSnapshot: new Prisma.Decimal(200.0),
+          commissionSnapshotRate: new Prisma.Decimal(6.0),
           commissionSnapshot: new Prisma.Decimal(12.0),
         },
         include: { product: true },
@@ -397,6 +400,7 @@ describe('AdminService - Product Management', () => {
         id: 'task-2',
         stepNumber: 3,
         priceSnapshot: new Prisma.Decimal('100.00'),
+        commissionSnapshotRate: new Prisma.Decimal('5.00'),
         commissionSnapshot: new Prisma.Decimal('5.00'),
       };
 
@@ -404,7 +408,8 @@ describe('AdminService - Product Management', () => {
       mockPrismaService.productTask.update = jest.fn().mockResolvedValue({
         ...existingTask,
         priceSnapshot: new Prisma.Decimal('500.00'),
-        commissionSnapshot: new Prisma.Decimal('15.00'),
+        commissionSnapshotRate: new Prisma.Decimal('15.00'),
+        commissionSnapshot: new Prisma.Decimal('75.00'),
       });
 
       const result = await service.overrideTaskCommission('task-2', {
@@ -416,7 +421,8 @@ describe('AdminService - Product Management', () => {
         where: { id: 'task-2' },
         data: {
           priceSnapshot: new Prisma.Decimal(500.0),
-          commissionSnapshot: new Prisma.Decimal(15.0),
+          commissionSnapshotRate: new Prisma.Decimal(15.0),
+          commissionSnapshot: new Prisma.Decimal(75.0),
         },
         include: { product: true },
       });

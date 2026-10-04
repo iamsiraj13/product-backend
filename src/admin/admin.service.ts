@@ -619,41 +619,72 @@ export class AdminService {
       throw new NotFoundException('Task not found');
     }
 
-    const commissionVal =
-      dto.commissionSnapshot ?? dto.commissionRate ?? dto.commission;
+    const rateVal = dto.commissionSnapshotRate ?? dto.commissionRate;
+    const commissionVal = dto.commissionSnapshot ?? dto.commission;
     const priceVal = dto.priceSnapshot ?? dto.price;
 
     if (
+      rateVal === undefined &&
       commissionVal === undefined &&
       priceVal === undefined &&
       !dto.productId
     ) {
       throw new BadRequestException(
-        'At least one of price (priceSnapshot), commission (commissionRate/commissionSnapshot), or productId must be provided',
+        'At least one of price (priceSnapshot), commission rate (commissionRate/commissionSnapshotRate), commission snapshot (commissionSnapshot/commission), or productId must be provided',
       );
     }
 
-    const dataToUpdate: Prisma.ProductTaskUpdateInput = {};
-
-    if (commissionVal !== undefined) {
-      dataToUpdate.commissionSnapshot = new Prisma.Decimal(commissionVal);
-    }
-
-    if (priceVal !== undefined) {
-      dataToUpdate.priceSnapshot = new Prisma.Decimal(priceVal);
-    }
-
+    let targetProduct = task.product;
     if (dto.productId) {
-      const product = await this.prisma.product.findUnique({
+      const foundProduct = await this.prisma.product.findUnique({
         where: { id: dto.productId },
       });
-      if (!product) {
+      if (!foundProduct) {
         throw new NotFoundException('Specified product not found');
       }
+      targetProduct = foundProduct;
+    }
+
+    const targetPrice =
+      priceVal !== undefined
+        ? priceVal
+        : dto.productId
+          ? Number(targetProduct.price)
+          : Number(task.priceSnapshot);
+
+    let targetRate: number;
+    let targetCommissionSnapshot: number;
+
+    if (rateVal !== undefined) {
+      targetRate = rateVal;
+      targetCommissionSnapshot =
+        commissionVal !== undefined
+          ? commissionVal
+          : Number((targetPrice * (targetRate / 100)).toFixed(2));
+    } else if (commissionVal !== undefined) {
+      targetCommissionSnapshot = commissionVal;
+      targetRate =
+        targetPrice > 0
+          ? Number(((targetCommissionSnapshot / targetPrice) * 100).toFixed(2))
+          : dto.productId
+            ? Number(targetProduct.commissionRate)
+            : Number(task.commissionSnapshotRate || 2.0);
+    } else if (dto.productId) {
+      targetRate = Number(targetProduct.commissionRate);
+      targetCommissionSnapshot = Number((targetPrice * (targetRate / 100)).toFixed(2));
+    } else {
+      targetRate = Number(task.commissionSnapshotRate || 2.0);
+      targetCommissionSnapshot = Number((targetPrice * (targetRate / 100)).toFixed(2));
+    }
+
+    const dataToUpdate: Prisma.ProductTaskUpdateInput = {
+      priceSnapshot: new Prisma.Decimal(targetPrice),
+      commissionSnapshotRate: new Prisma.Decimal(targetRate),
+      commissionSnapshot: new Prisma.Decimal(targetCommissionSnapshot),
+    };
+
+    if (dto.productId) {
       dataToUpdate.product = { connect: { id: dto.productId } };
-      if (priceVal === undefined) {
-        dataToUpdate.priceSnapshot = product.price;
-      }
     }
 
     const updatedTask = await this.prisma.productTask.update({
@@ -663,7 +694,7 @@ export class AdminService {
     });
 
     return {
-      message: `Successfully overridden task step #${updatedTask.stepNumber} (Price: $${updatedTask.priceSnapshot}, Commission: ${updatedTask.commissionSnapshot}%)`,
+      message: `Successfully overridden task step #${updatedTask.stepNumber} (Price: $${updatedTask.priceSnapshot}, Rate: ${updatedTask.commissionSnapshotRate}%, Commission Snapshot: $${updatedTask.commissionSnapshot})`,
       task: updatedTask,
     };
   }
@@ -712,12 +743,19 @@ export class AdminService {
       const stepNumber = existingTasksCount + i + 1;
       const randomProduct = activeProducts[Math.floor(Math.random() * activeProducts.length)];
 
+      const priceSnapshot = randomProduct.price;
+      const commissionSnapshotRate = randomProduct.commissionRate;
+      const priceDec = new Prisma.Decimal(priceSnapshot.toString());
+      const rateDec = new Prisma.Decimal(commissionSnapshotRate.toString());
+      const commissionSnapshot = priceDec.mul(rateDec).div(100);
+
       tasksToCreate.push({
         userId,
         productId: randomProduct.id,
         stepNumber,
-        priceSnapshot: randomProduct.price,
-        commissionSnapshot: randomProduct.commissionRate,
+        priceSnapshot,
+        commissionSnapshotRate,
+        commissionSnapshot,
       });
     }
 

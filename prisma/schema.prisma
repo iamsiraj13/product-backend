@@ -88,10 +88,11 @@ model ProductTask {
   user      User    @relation(fields: [userId], references: [id])
   product   Product @relation(fields: [productId], references: [id])
 
-  stepNumber         Int      @default(1)
-  priceSnapshot      Decimal  @db.Decimal(12, 2)
-  commissionSnapshot Decimal  @db.Decimal(5, 2)
-  earnedCommission   Decimal? @db.Decimal(12, 2)
+  stepNumber             Int      @default(1)
+  priceSnapshot          Decimal  @db.Decimal(12, 2)
+  commissionSnapshotRate Decimal  @default(2.00) @db.Decimal(5, 2)
+  commissionSnapshot     Decimal  @db.Decimal(12, 2)
+  earnedCommission       Decimal? @db.Decimal(12, 2)
 
   rating  Int?
   comment String?
