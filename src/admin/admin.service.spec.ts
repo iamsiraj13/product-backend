@@ -23,6 +23,7 @@ describe('AdminService - Product Management', () => {
       findMany: jest.fn(),
     },
     user: {
+      create: jest.fn(),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -420,6 +421,113 @@ describe('AdminService - Product Management', () => {
         include: { product: true },
       });
       expect(result.task.priceSnapshot).toEqual(new Prisma.Decimal('500.00'));
+    });
+  });
+
+  describe('createTrainingAccount', () => {
+    it('should throw BadRequestException if parentUserCode and parentUserId are missing', async () => {
+      await expect(
+        service.createTrainingAccount(null, { username: 'trainee', password: 'password123' } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException if parent user is not found', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createTrainingAccount(null, {
+          parentUserCode: 'NONEXISTENT',
+          username: 'trainee_1',
+          password: 'password123',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should create training account linked to parent user when found by invitationCode', async () => {
+      const mockParent = {
+        id: 'parent-1',
+        username: 'parent_john',
+        invitationCode: 'INV12345',
+      };
+
+      mockPrismaService.user.findFirst
+        .mockResolvedValueOnce(mockParent) // Find parent user
+        .mockResolvedValueOnce(null); // Check duplicate username
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null); // Unique invitationCode generation check
+
+      const createdTrainingUser = {
+        id: 'trainee-1',
+        username: 'trainee_john',
+        accountType: 'TRAINING',
+        parentUserId: 'parent-1',
+        balance: new Prisma.Decimal('100.00'),
+        taskLimit: 33,
+        invitationCode: 'TRAIN99',
+        parentUser: {
+          id: 'parent-1',
+          username: 'parent_john',
+          invitationCode: 'INV12345',
+        },
+      };
+
+      mockPrismaService.user.create.mockResolvedValue(createdTrainingUser);
+
+      const result = await service.createTrainingAccount(null, {
+        parentUserCode: 'INV12345',
+        username: 'trainee_john',
+        password: 'password123',
+        initialBalance: 100.0,
+      });
+
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            username: 'trainee_john',
+            accountType: 'TRAINING',
+            parentUserId: 'parent-1',
+            taskLimit: 33,
+          }),
+        }),
+      );
+      expect(result.parentUser.invitationCode).toBe('INV12345');
+    });
+
+    it('should hash and store withdrawalPassword when provided', async () => {
+      const mockParent = {
+        id: 'parent-1',
+        username: 'parent_john',
+        invitationCode: 'INV12345',
+      };
+
+      mockPrismaService.user.findFirst
+        .mockResolvedValueOnce(mockParent)
+        .mockResolvedValueOnce(null);
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      mockPrismaService.user.create.mockResolvedValue({
+        id: 'trainee-2',
+        username: 'trainee_with_wpass',
+        accountType: 'TRAINING',
+        parentUserId: 'parent-1',
+      });
+
+      await service.createTrainingAccount(null, {
+        parentUserCode: 'INV12345',
+        username: 'trainee_with_wpass',
+        password: 'password123',
+        withdrawalPassword: 'withdrawPass123',
+      });
+
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            username: 'trainee_with_wpass',
+            withdrawalPasswordHash: expect.any(String),
+          }),
+        }),
+      );
     });
   });
 });

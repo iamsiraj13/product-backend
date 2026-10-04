@@ -433,13 +433,25 @@ export class AdminService {
   }
 
   // --- Provision Linked Training Account ---
-  async createTrainingAccount(parentUserId: string, dto: CreateTrainingAccountDto) {
-    const parentUser = await this.prisma.user.findUnique({
-      where: { id: parentUserId },
+  async createTrainingAccount(parentUserId: string | null | undefined, dto: CreateTrainingAccountDto) {
+    const parentCode = dto.parentUserCode || parentUserId;
+
+    if (!parentCode) {
+      throw new BadRequestException('Parent user invitation code, username, or ID is required');
+    }
+
+    const parentUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { invitationCode: parentCode },
+          { username: parentCode },
+          { id: parentCode },
+        ],
+      },
     });
 
     if (!parentUser) {
-      throw new NotFoundException('Parent user not found');
+      throw new NotFoundException(`Parent user with code/username '${parentCode}' not found`);
     }
 
     const existingUser = await this.prisma.user.findFirst({
@@ -457,6 +469,9 @@ export class AdminService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const withdrawalPasswordHash = dto.withdrawalPassword
+      ? await bcrypt.hash(dto.withdrawalPassword, 10)
+      : null;
     let inviteCode = this.generateUniqueInviteCode();
 
     while (await this.prisma.user.findUnique({ where: { invitationCode: inviteCode } })) {
@@ -469,10 +484,12 @@ export class AdminService {
         email: dto.email || null,
         phone: dto.phone || null,
         passwordHash,
+        withdrawalPasswordHash,
         role: Role.USER,
         accountType: AccountType.TRAINING,
         parentUserId: parentUser.id,
         balance: new Prisma.Decimal(dto.initialBalance || 0),
+        taskLimit: dto.taskLimit || 33,
         invitationCode: inviteCode,
       },
       select: {
@@ -484,8 +501,16 @@ export class AdminService {
         accountType: true,
         parentUserId: true,
         balance: true,
+        taskLimit: true,
         invitationCode: true,
         createdAt: true,
+        parentUser: {
+          select: {
+            id: true,
+            username: true,
+            invitationCode: true,
+          },
+        },
       },
     });
 

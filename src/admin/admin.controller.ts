@@ -225,8 +225,16 @@ export class AdminController {
     return this.adminService.adjustBalance(adminId, targetUserId, dto);
   }
 
-  // Provision Training Account Linked to Parent User
-  @ApiOperation({ summary: 'Provision training account linked to user' })
+  // Provision Training Account Linked to Parent User (by userCode in body or param ID)
+  @ApiOperation({ summary: 'Provision training account linked to parent user by invitation code or username' })
+  @Post('training-account')
+  async createTrainingAccountByCode(
+    @Body() dto: CreateTrainingAccountDto,
+  ) {
+    return this.adminService.createTrainingAccount(undefined, dto);
+  }
+
+  @ApiOperation({ summary: 'Provision training account linked to user by ID' })
   @ApiParam({ name: 'id', description: 'Parent user ID' })
   @Post('users/:id/training-account')
   async createTrainingAccount(

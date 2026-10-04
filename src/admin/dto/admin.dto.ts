@@ -170,6 +170,11 @@ export class CreateAgentDto {
 }
 
 export class CreateTrainingAccountDto {
+  @ApiPropertyOptional({ example: 'INV78921', description: 'Parent user invitation code, username, or ID' })
+  @IsOptional()
+  @IsString()
+  parentUserCode?: string;
+
   @ApiProperty({ example: 'trainee_john', description: 'Training account username' })
   @IsString()
   @IsNotEmpty()
@@ -180,6 +185,12 @@ export class CreateTrainingAccountDto {
   @IsNotEmpty()
   @MinLength(6)
   password: string;
+
+  @ApiPropertyOptional({ example: 'withdraw123', description: 'Withdrawal password for training account' })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  withdrawalPassword?: string;
 
   @ApiPropertyOptional({ example: 'trainee@example.com' })
   @IsOptional()
@@ -197,6 +208,13 @@ export class CreateTrainingAccountDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   initialBalance?: number;
+
+  @ApiPropertyOptional({ example: 33, description: 'Task limit allocation (default 33)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  taskLimit?: number = 33;
 }
 
 export class UpdateUserDto {

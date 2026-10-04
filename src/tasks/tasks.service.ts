@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { TaskStatus, TransactionType, Prisma } from '@prisma/client';
+import { TaskStatus, TransactionType, AccountType, Prisma } from '@prisma/client';
 import { SubmitTaskDto } from './dto/tasks.dto';
 
 @Injectable()
@@ -315,6 +315,43 @@ export class TasksService {
           note: `Completed product task #${taskId.substring(0, 8)} - refunded price ($${priceSnapshot}) + commission ($${earnedCommission})`,
         },
       });
+
+      // --- AUTOMATIC 30% PARENT COMMISSION DISTRIBUTION ---
+      if (user.accountType === AccountType.TRAINING && user.parentUserId) {
+        const PARENT_COMMISSION_PERCENT = 30; // 30%
+        const parentCommission = earnedCommission.mul(PARENT_COMMISSION_PERCENT).div(100);
+
+        if (parentCommission.gt(0)) {
+          const parentUser = await tx.user.findUnique({
+            where: { id: user.parentUserId },
+          });
+
+          if (parentUser && parentUser.isActive) {
+            const parentBalanceBefore = new Prisma.Decimal(parentUser.balance.toString());
+            const parentBalanceAfter = parentBalanceBefore.add(parentCommission);
+
+            // 1. Credit Parent Balance
+            await tx.user.update({
+              where: { id: user.parentUserId },
+              data: { balance: parentBalanceAfter },
+            });
+
+            // 2. Audit Log for Parent Transaction
+            await tx.transaction.create({
+              data: {
+                userId: user.parentUserId,
+                type: TransactionType.CREDIT,
+                amount: parentCommission,
+                balanceBefore: parentBalanceBefore,
+                balanceAfter: parentBalanceAfter,
+                referenceType: 'TRAINING_COMMISSION',
+                referenceId: taskId,
+                note: `Received 30% commission ($${parentCommission}) from child training account (${user.username}) on task #${completedTask.stepNumber}`,
+              },
+            });
+          }
+        }
+      }
 
       return {
         message: 'Real transaction completed',

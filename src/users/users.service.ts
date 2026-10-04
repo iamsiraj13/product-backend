@@ -24,6 +24,7 @@ export class UsersService {
         accountType: true,
         balance: true,
         invitationCode: true,
+        hasClaimedWelcomeReward: true,
         parentUserId: true,
         parentUser: {
           select: {

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { TaskStatus, TransactionType, Prisma } from '@prisma/client';
+import { TaskStatus, TransactionType, AccountType, Prisma } from '@prisma/client';
 
 describe('TasksService', () => {
   let service: TasksService;
@@ -347,6 +347,67 @@ describe('TasksService', () => {
       await expect(
         service.submitTask('usr-1', 'task-pending-overridden', { rating: 5 }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should automatically credit 30% commission to parent user when a TRAINING account completes a task', async () => {
+      const trainingUser = {
+        id: 'trainee-1',
+        username: 'trainee_john',
+        accountType: AccountType.TRAINING,
+        parentUserId: 'parent-1',
+        balance: new Prisma.Decimal('500.00'),
+        isActive: true,
+      };
+
+      const parentUser = {
+        id: 'parent-1',
+        username: 'parent_user',
+        balance: new Prisma.Decimal('0.00'),
+        isActive: true,
+      };
+
+      const taskPending = {
+        id: 'task-training-1',
+        userId: 'trainee-1',
+        stepNumber: 1,
+        priceSnapshot: new Prisma.Decimal('500.00'),
+        commissionSnapshot: new Prisma.Decimal('2.00'), // earnedCommission = $10.00
+        status: TaskStatus.PENDING,
+      };
+
+      prismaService.productTask.findUnique.mockResolvedValue(taskPending);
+      prismaService.user.findUnique
+        .mockResolvedValueOnce(trainingUser) // First call: find training user
+        .mockResolvedValueOnce(parentUser); // Second call: find parent user
+
+      prismaService.user.update
+        .mockResolvedValueOnce({ ...trainingUser, balance: new Prisma.Decimal('510.00') }) // Credit trainee balance ($500 refund + $10 commission)
+        .mockResolvedValueOnce({ ...parentUser, balance: new Prisma.Decimal('3.00') }); // Credit parent balance (30% of $10.00 = $3.00)
+
+      prismaService.productTask.update.mockResolvedValue({
+        ...taskPending,
+        status: TaskStatus.COMPLETED,
+        earnedCommission: new Prisma.Decimal('10.00'),
+      });
+
+      const result = await service.submitTask('trainee-1', 'task-training-1', { rating: 5 });
+
+      expect(result.earnedCommission.toString()).toBe('10');
+      // Verify parent balance update: 30% of 10.00 = 3.00
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'parent-1' },
+        data: { balance: new Prisma.Decimal('3.00') },
+      });
+      // Verify transaction audit log created for parent user
+      expect(prismaService.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'parent-1',
+          type: TransactionType.CREDIT,
+          amount: new Prisma.Decimal('3.00'),
+          referenceType: 'TRAINING_COMMISSION',
+          referenceId: 'task-training-1',
+        }),
+      });
     });
   });
 

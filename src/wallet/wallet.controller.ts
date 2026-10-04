@@ -35,4 +35,11 @@ export class WalletController {
   ) {
     return this.walletService.saveWalletAddress(userId, dto);
   }
+
+  @Post('claim-welcome-reward')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Claim one-time $10 free welcome balance reward' })
+  async claimWelcomeReward(@CurrentUser('id') userId: string) {
+    return this.walletService.claimWelcomeReward(userId);
+  }
 }
