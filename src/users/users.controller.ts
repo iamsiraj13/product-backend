@@ -1,8 +1,12 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Put,
+  Body,
+  HttpCode,
+  HttpStatus,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -13,6 +17,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangeWithdrawalPasswordDto } from './dto/change-withdrawal-password.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
@@ -80,5 +86,31 @@ export class UsersController {
     }
     return this.usersService.updateAvatar(userId, file);
   }
-}
 
+  @ApiOperation({ summary: 'Change user account login password' })
+  @HttpCode(HttpStatus.OK)
+  @Post('profile/change-password')
+  async changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.usersService.changePassword(userId, dto);
+  }
+
+
+
+
+  @ApiOperation({ summary: 'Change user withdrawal password / transaction PIN' })
+  @HttpCode(HttpStatus.OK)
+  @Post('profile/change-withdrawal-password')
+  async changeWithdrawalPassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangeWithdrawalPasswordDto,
+  ) {
+    return this.usersService.changeWithdrawalPassword(userId, dto);
+  }
+
+
+
+
+}

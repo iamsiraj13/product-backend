@@ -24,27 +24,7 @@ export class TasksService {
 
     const taskLimit = user.taskLimit || 33;
 
-    // 1. Check user completed task limit for today
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const completedTodayCount = await this.prisma.productTask.count({
-      where: {
-        userId,
-        status: TaskStatus.COMPLETED,
-        completedAt: {
-          gte: startOfDay,
-        },
-      },
-    });
-
-    if (completedTodayCount >= taskLimit) {
-      throw new BadRequestException(
-        `Task limit of ${taskLimit} tasks has been reached`,
-      );
-    }
-
-    // 2. Check if user already has an active task in progress or pending
+    // 1. Check if user already has an active task in progress or pending
     const activeTask = await this.prisma.productTask.findFirst({
       where: {
         userId,
@@ -63,7 +43,7 @@ export class TasksService {
       );
     }
 
-    // 3. Count total completed tasks to determine current next step number
+    // 2. Count total completed tasks to determine current cycle step number
     const totalCompletedCount = await this.prisma.productTask.count({
       where: {
         userId,
@@ -71,9 +51,11 @@ export class TasksService {
       },
     });
 
-    const nextStepNumber = totalCompletedCount + 1;
+    // Reset cycle step number when taskLimit (33) tasks are completed
+    const completedInCurrentCycle = totalCompletedCount % taskLimit;
+    const nextStepNumber = completedInCurrentCycle + 1;
 
-    // 4. Check for existing pre-generated / allocated task slot for the next step number
+    // 3. Check for existing pre-generated / allocated task slot for the next step number
     const existingTask = await this.prisma.productTask.findFirst({
       where: {
         userId,
@@ -83,13 +65,14 @@ export class TasksService {
       include: {
         product: true,
       },
+      orderBy: { generatedAt: 'desc' },
     });
 
     if (existingTask) {
       return existingTask;
     }
 
-    // 5. Filter active products where price <= currentBalance
+    // 4. Filter active products where price <= currentBalance
     const eligibleProducts = await this.prisma.product.findMany({
       where: {
         isActive: true,
@@ -105,11 +88,11 @@ export class TasksService {
       );
     }
 
-    // 6. Randomly pick an eligible product
+    // 5. Randomly pick an eligible product
     const randomIndex = Math.floor(Math.random() * eligibleProducts.length);
     const selectedProduct = eligibleProducts[randomIndex];
 
-    // 7. Create ProductTask snapshot with stepNumber
+    // 6. Create ProductTask snapshot with stepNumber
     const priceDec = new Prisma.Decimal(selectedProduct.price.toString());
     const rateDec = new Prisma.Decimal(selectedProduct.commissionRate.toString());
     const commissionSnapshot = priceDec.mul(rateDec).div(100);
@@ -364,8 +347,15 @@ export class TasksService {
     });
   }
 
-  // Get user task history and active task status
+  // Get user task history and active task status with cycle progress
   async getUserTasks(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { taskLimit: true },
+    });
+
+    const taskLimit = user?.taskLimit || 33;
+
     const activeTask = await this.prisma.productTask.findFirst({
       where: {
         userId,
@@ -391,9 +381,23 @@ export class TasksService {
       take: 20,
     });
 
+    const totalCompletedCount = await this.prisma.productTask.count({
+      where: {
+        userId,
+        status: TaskStatus.COMPLETED,
+      },
+    });
+
+    const completedInCurrentCycle = totalCompletedCount % taskLimit;
+    const currentCycle = Math.floor(totalCompletedCount / taskLimit) + 1;
+
     return {
       activeTask,
       recentCompleted,
+      totalCompletedCount,
+      completedInCurrentCycle,
+      taskLimit,
+      currentCycle,
     };
   }
 

@@ -60,13 +60,19 @@ describe('TasksService', () => {
   });
 
   describe('generateTask', () => {
-    it('should throw BadRequestException when user hits 33 daily tasks limit', async () => {
+    it('should reset stepNumber to 1 when user completes 33 tasks', async () => {
       prismaService.user.findUnique.mockResolvedValue(mockUser);
-      prismaService.productTask.count.mockResolvedValue(33);
+      prismaService.productTask.findFirst.mockResolvedValue(null);
+      prismaService.productTask.count.mockResolvedValue(33); // 33 completed tasks
+      prismaService.product.findMany.mockResolvedValue([mockProduct]);
+      prismaService.productTask.create.mockImplementation((args) => ({
+        id: 'task-cycle-reset',
+        ...args.data,
+        product: mockProduct,
+      }));
 
-      await expect(service.generateTask('usr-1')).rejects.toThrow(
-        BadRequestException,
-      );
+      const task = await service.generateTask('usr-1');
+      expect(task.stepNumber).toBe(1); // 33 % 33 + 1 = 1
     });
 
     it('should throw ConflictException if user already has an active pending task', async () => {

@@ -264,6 +264,69 @@ export interface UserTasksResponse {
   }
 }
 ```
+}
+
+---
+
+#### 4.1. Change Login Password
+- **Method & Path**: `POST /api/v1/profile/change-password` (Aliases: `POST /api/v1/users/change-password`, `POST /api/v1/auth/change-password`)
+- **Auth Guard**: Bearer JWT Required
+- **Description**: Changes the logged-in user's account login password. Verifies the current password before updating.
+
+**Headers**:
+`Authorization: Bearer <accessToken>`
+
+**Request Body**:
+```json
+{
+  "oldPassword": "oldPassword123",
+  "newPassword": "newPassword123",
+  "confirmPassword": "newPassword123"
+}
+```
+
+**Success Response (200 OK)**:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "message": "Password changed successfully"
+  },
+  "timestamp": "2026-10-07T14:30:00.000Z"
+}
+```
+
+---
+
+#### 4.2. Change Withdrawal Password
+- **Method & Path**: `POST /api/v1/profile/change-withdrawal-password` (Aliases: `POST /api/v1/users/change-withdrawal-password`, `POST /api/v1/auth/change-withdrawal-password`)
+- **Auth Guard**: Bearer JWT Required
+- **Description**: Changes or sets the logged-in user's transaction/withdrawal password.
+
+**Headers**:
+`Authorization: Bearer <accessToken>`
+
+**Request Body**:
+```json
+{
+  "oldWithdrawalPassword": "123456",
+  "newWithdrawalPassword": "654321",
+  "confirmWithdrawalPassword": "654321"
+}
+```
+
+**Success Response (200 OK)**:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "message": "Withdrawal password updated successfully"
+  },
+  "timestamp": "2026-10-07T14:30:00.000Z"
+}
+```
 
 ---
 
